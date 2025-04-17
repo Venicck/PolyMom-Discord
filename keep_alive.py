@@ -5,7 +5,8 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is running!"
+    url = request.base_url
+    return f'このページのURLは {url} です'
 
 def run():
     app.run(host='0.0.0.0', port=8080)
