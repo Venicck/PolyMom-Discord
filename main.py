@@ -1,4 +1,4 @@
-import discord, os, json, time, asyncio, sys, re, traceback
+import discord, os, json, time, asyncio, sys, re
 from discord.ext import tasks
 from discord import app_commands
 from discord.ext import commands
@@ -57,16 +57,24 @@ async def Reply(interaction: discord.Integration, type:int, title: str, message:
     """type: {0:成功,1:情報,2:エラー}"""
     colors = [discord.Color.green(), discord.Color.blue(), discord.Color.red()]
     emb = discord.Embed(title=title, description=message, color=colors[type])
-    await interaction.response.send_message(embed=emb, ephemeral=not public)
+    await Reply(itr, 2, "エラー", embed=emb, ephemeral=not public)
 
 #region イベント
 @bot.event
 async def on_ready():
     print(f"Bot logged in as {bot.user}")
     activity = "元気に動いてるわよ"
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.custom, name=activity))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.playing, name=activity))
     await tree.sync()
 
+
+@bot.event
+async def on_message(msg):
+    if (msg.author.id == 302957994675535872) and (bot.user in msg.mentions) and ("おやすみ" in msg.content):
+        await msg.add_reaction("💤")
+        await bot.close()
+        await asyncio.sleep(2)
+    
 @bot.event
 async def on_reaction_add(reaction, user):
     if reaction.emoji in data["notice_group"]:
@@ -88,24 +96,28 @@ async def on_reaction_add(reaction, user):
 async def add_thread(itr: discord.Interaction, emoji: str, thread_name: str):
     global data
     if data["target_forum"] == "":
-        await interaction.response.send_message("スレッドを作成するためのフォーラムが設定されていません")
+        await Reply(itr, 2, "エラー", "スレッドを作成するためのフォーラムが設定されていません")
     else:
         if emoji in data["notice_group"]:
-            await interaction.response.send_message("その絵文字は既に使われています")
+            await Reply(itr, 2, "エラー", "その絵文字は既に使われています")
+        elif not (is_discord_emoji(emoji) or is_unicode_emoji(emoji)):
+            await Reply(itr, 2, "エラー", "絵文字が適正ではありません")
         else:
             forum = bot.get_channel(int(data["target_forum"]))
             if not isinstance(forum, discord.ForumChannel):
-                await interaction.response.send_message("設定で指定されているフォーラムidが適切ではありません")
+                await Reply(itr, 2, "エラー", "設定で指定されているフォーラムidが適切ではありません")
             else:
                 thread = await forum.create_thread(name="テスト")
                 if forum is None:
-                    await interaction.response.send_message("フォーラムが見つかりませんでした")
+                    await Reply(itr, 2, "エラー", "フォーラムが見つかりませんでした")
                 else:  
                     data["notice_group"][emoji] = {}
-                    _temp ={"owner": str(interaction.user.id),
-                            "thread_id": str(thread.id)
+                    _temp ={"owner": str(itr.user.id),
+                            "thread_id": str(thread.id),
+                            "created_at": str(time.time()),
+                            "messages":{}
                            }
-                    await interaction.response.send_message("")
+                    await Reply(itr, 2, "エラー", "")
 @tree.command(name='remove_thread', description="絵文字に対応するスレッドを削除します")
 @tree.describe(emoji = "絵文字1文字")
 async def remove_thread(itr: discord.Interaction, emoji: str):
