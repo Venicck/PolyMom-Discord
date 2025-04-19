@@ -306,29 +306,25 @@ async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
 async def Check_expires():
     global data
     now = time.time()
+    _temp = data["notice_group"]
     for emoji in data["notice_group"]:
         i = 0
-        j = 0
-        messages_tmp = data["notice_group"][emoji]["messages"]
         for message in data["notice_group"][emoji]["messages"]:
             if "expire_at" in data["notice_group"][emoji]["messages"][message]:
                 if now > float(data["notice_group"][emoji]["messages"][message]["expire_at"]):
                     try:
                         msg = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"]))
                         await msg.delete()
-                        del messages_tmp[message]
+                        del _temp[emoji]["messages"][message]
                         i += 1
                         
                     except:
-                        del messages_tmp[message]
-                        j += 1
+                        del _temp[emoji]["messages"][message]
         if i > 0:
-            data["notice_group"][emoji]["messages"] = messages_tmp
             await bot.get_channel(int(data["log_channel"])).send(f"{emoji} の有効期限の切れた転送メッセージを削除しました")
-            Save()
-        elif j > 0:
-            data["notice_group"][emoji]["messages"] = messages_tmp
-            Save()
+    if data["notice_group"] != _temp:
+        data["notice_group"] = _temp
+        Save()
     await Thread_Refresh()
 
 Load()
