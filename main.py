@@ -81,7 +81,7 @@ async def Reply(itr: discord.Interaction, type:int, title: str, message: str, pr
 async def Thread_Refresh():
     global data
     for emoji in data["notice_group"]:
-        channel = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
+        channel = bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
         if channel is None:
             del data["notice_group"][emoji]
             Save()
@@ -108,6 +108,8 @@ async def on_ready():
     activity = "元気に動いてるわよ"
     await bot.change_presence(activity=discord.CustomActivity(name=activity))
     await tree.sync()
+    await Thread_Refresh()
+    Check_expires.start()
 
 
 @bot.event
@@ -115,18 +117,15 @@ async def on_message(msg):
     if (msg.author.id == 302957994675535872) and (bot.user in msg.mentions):
         if "おやすみ" in msg.content:
             await msg.add_reaction("💤")
+            Check_expires.stop()
             await bot.close()
             await asyncio.sleep(2)
     
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    print(1)
-    msg_author = bot.get_user(payload.message_author_id)
-    if msg_author.bot or payload.member.bot:
-        print(2)
+    if payload.member.id == bot.user.id:
         pass
-    elif data["notice_group"][payload.emoji.name] is not None:
-        print(3)
+    elif payload.emoji.name in data["notice_group"].keys():
         channel = bot.get_channel(int(data["notice_group"][payload.emoji.name]["thread_id"]))
         msg: discord.Message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][payload.emoji.name]["messages"]:
@@ -137,7 +136,6 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                 "created_at": str(time.time())
             }
             Save()
-            print(4)
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -163,6 +161,7 @@ async def on_guild_join(guild):
 @tree.command(name='reload', description="jsonファイルを再読み込みします")
 async def reload(itr: discord.Interaction):
     if str(itr.user.id) in admins:
+        await Thread_Refresh()
         Load()
         await Reply(itr, 0, "完了", "jsonファイルを再読み込みしました", True)
     else:
@@ -215,7 +214,7 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
         await Reply(itr,2, "エラー", "指定されたスレッドの所有者ではありません")
     else:
         try:
-            thread = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
+            thread = bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
             await thread.delete(reason="コマンドによる削除")
             del data["notice_group"][emoji]
             Save()
@@ -227,23 +226,22 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
 @app_commands.describe(msg_link = "**転送された**メッセージのリンク", expire_at = "有効期限 (YYYY/MM/DD HH:MM or YYYY/MM/DD の書式)")
 async def expire(itr: discord.Interaction, msg_link: str, expire_at: str):
     try:
-        msg = await commands.MessageConverter().convert(itr, msg_link)
         if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
             if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
-                expire_at = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
+                expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
             else:
-                expire_at = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
-                expire_at += 86400 # 1日後に設定(翌日になったら削除)
+                expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
+                expire += 86400 # 1日後に設定(翌日になったら削除)
             
-            if expire_at < time.time():
+            if expire < time.time():
                 itr.command_failed = True
                 await Reply(itr,2, "エラー", "有効期限が過去の時間です")
             else:
                 is_found = False
                 for emoji in data["notice_group"]:
                     for message in data["notice_group"][emoji]["messages"]:
-                        if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == str(msg.id):
-                            data["notice_group"][emoji]["messages"][message]["expire_at"] = str(expire_at)
+                        if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == msg_link.split("/")[-1]:
+                            data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
                             is_found = True
                             Save()
                             break
@@ -295,7 +293,7 @@ async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
         await Reply(itr,2, "エラー", "このコマンドは管理者のみ使用できます", False)
     else:
         log_channel = await forum.create_thread(name="ログ", reason="コマンドによる作成", content=f"このスレッドは{bot.user.mention} のログチャンネルです\n絵文字連携の追加、削除等の通知が行われます。")
-        cmdline = await forum.create_thread(name="コマンドライン", reason="コマンドによる作成", content=f"このスレッドは{bot.user.mention} のコマンド実行用チャンネルです")
+        await forum.create_thread(name="コマンドライン", reason="コマンドによる作成", content=f"このスレッドは{bot.user.mention} のコマンド実行用チャンネルです")
         data["target_forum"] = str(forum.id)
         data["log_channel"] = str(log_channel.thread.id)
         Save()
@@ -309,19 +307,30 @@ async def Check_expires():
     global data
     now = time.time()
     for emoji in data["notice_group"]:
+        i = 0
+        j = 0
+        messages_tmp = data["notice_group"][emoji]["messages"]
         for message in data["notice_group"][emoji]["messages"]:
             if "expire_at" in data["notice_group"][emoji]["messages"][message]:
                 if now > float(data["notice_group"][emoji]["messages"][message]["expire_at"]):
                     try:
-                        msg : discord.Message = await commands.MessageConverter(data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"]).convert(bot)
+                        msg = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"]))
                         await msg.delete()
-                        del data["notice_group"][emoji]["messages"][message]
-                        await bot.get_channel(int(data["log_channel"])).send(f"{emoji} の有効期限の切れた転送メッセージを削除しました")
-                        Save()
+                        del messages_tmp[message]
+                        i += 1
+                        
                     except:
-                        pass
+                        del messages_tmp[message]
+                        j += 1
+        if i > 0:
+            data["notice_group"][emoji]["messages"] = messages_tmp
+            await bot.get_channel(int(data["log_channel"])).send(f"{emoji} の有効期限の切れた転送メッセージを削除しました")
+            Save()
+        elif j > 0:
+            data["notice_group"][emoji]["messages"] = messages_tmp
+            Save()
     await Thread_Refresh()
-                    
+
 Load()
 
 # token = os.getenv("DISCORD_TOKEN")
