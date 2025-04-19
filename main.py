@@ -114,6 +114,17 @@ async def on_reaction_add(reaction, user):
             }
             Save()
     await bot.process_commands(reaction)
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send("このコマンドは管理者のみ使用できます")
+    elif isinstance(error, commands.CommandOnCooldown):
+        await ctx.send(f"このコマンドは{int(error.retry_after)}秒後に再実行できます")
+    else:
+        await ctx.send(f"エラーが発生しました: {str(error)}")
     
 #region コマンド
 
@@ -133,7 +144,7 @@ async def add_thread(itr: discord.Interaction, emoji: str, thread_name: str):
             if not isinstance(forum, discord.ForumChannel):
                 await Reply(itr, 2, "エラー", "設定で指定されているフォーラムidが適切ではありません")
             else:
-                thread = await forum.create_thread(name="テスト")
+                thread = await forum.create_thread(name=thread_name, reason="絵文字と連携したスレッドを作成", content=f"このスレッドには {emoji} のリアクションがつけられたメッセージが自動で転送されます。\nスレッドの作成者: {itr.user.mention}")
                 if forum is None:
                     await Reply(itr, 2, "エラー", "フォーラムが見つかりませんでした")
                 else:  
@@ -160,7 +171,7 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
         await Reply(itr,2, "エラー", "指定されたスレッドの所有者ではありません")
     else:
         try:
-            thread = await bot.get_channel(data["notice_group"][emoji]["thread_id"])
+            thread = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
             await thread.delete(reason="コマンドによる削除")
             del data["notice_group"][emoji]
             Save()
