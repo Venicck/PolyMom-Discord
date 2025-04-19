@@ -272,6 +272,5 @@ async def Check_expires():
                         pass
 
 # token = os.getenv("DISCORD_TOKEN")
-token = input("Tokenを入力>>>")
-if token is not None:
-    bot.run(token)
+import Ptoken
+bot.run(Ptoken.get())
