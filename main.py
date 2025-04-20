@@ -53,7 +53,7 @@ def Save():
 def Initialize():
     global data
     dists=["notice_group"]
-    vars=["target_forum", "log_channel"]
+    vars=["target_forum", "log_channel", "cmd_channel"]
     for dist in dists:
         if dist not in data:
             data[dist] = {}
@@ -114,8 +114,8 @@ async def on_ready():
 
 @bot.event
 async def on_message(msg):
-    if (msg.author.id == 302957994675535872) and (bot.user in msg.mentions):
-        if "おやすみ" in msg.content:
+    if (msg.author.id == 302957994675535872):
+        if msg.content == "--stop":
             await msg.add_reaction("💤")
             Check_expires.stop()
             await bot.close()
@@ -123,14 +123,13 @@ async def on_message(msg):
     
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    if payload.member.id == bot.user.id:
-        pass
-    elif payload.emoji.name in data["notice_group"].keys():
-        channel = bot.get_channel(int(data["notice_group"][payload.emoji.name]["thread_id"]))
+    em = str(payload.emoji)
+    if em in data["notice_group"]:
+        channel = bot.get_channel(int(data["notice_group"][em]["thread_id"]))
         msg: discord.Message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
-        if (channel is not None) and str(payload.message_id) not in data["notice_group"][payload.emoji.name]["messages"]:
+        if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
             forward = await msg.forward(channel)
-            data["notice_group"][payload.emoji.name]["messages"][str(payload.message_id)] = {
+            data["notice_group"][em]["messages"][str(payload.message_id)] = {
                 "forwarded_msg_id": str(forward.id),
                 "user_id": str(payload.user_id),
                 "created_at": str(time.time())
@@ -197,7 +196,7 @@ async def add_thread(itr: discord.Interaction, emoji: str, thread_name: str):
                 }
                 Save()
                 await Reply(itr, 0, "スレッドを作成しました。", f"{thread.thread.mention} に {emoji} のリアクションがつけられたメッセージが自動転送されるようになりました。")
-                await bot.get_channel(int(data["log_channel"])).send(f"{emoji} 連携スレッドが作成されました。")
+                await bot.get_channel(int(data["log_channel"])).send(f"{emoji} ➤ {thread.thread.mention} 連携スレッドが作成されました。")
 
 @tree.command(name='remove_thread', description="絵文字に対応するスレッドを削除します")
 @app_commands.describe(emoji = "絵文字1文字")
@@ -293,12 +292,14 @@ async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
         await Reply(itr,2, "エラー", "このコマンドは管理者のみ使用できます", False)
     else:
         log_channel = await forum.create_thread(name="ログ", reason="コマンドによる作成", content=f"このスレッドは{bot.user.mention} のログチャンネルです\n絵文字連携の追加、削除等の通知が行われます。")
-        await forum.create_thread(name="コマンドライン", reason="コマンドによる作成", content=f"このスレッドは{bot.user.mention} のコマンド実行用チャンネルです")
+        cmd_channel = await forum.create_thread(name="コマンドライン", reason="コマンドによる作成", content=f"このスレッドは{bot.user.mention} のコマンド実行用チャンネルです\n使い方は`/help`から見ることができます。")
         data["target_forum"] = str(forum.id)
         data["log_channel"] = str(log_channel.thread.id)
+        data["cmd_channel"] = str(cmd_channel.thread.id)
         Save()
         await Reply(itr, 0, "成功", f"フォーラムを{forum.mention}に設定しました", False)
         await bot.get_channel(int(data["log_channel"])).send(f"{bot.user.mention} のログが当チャンネルに送信されるようになりました。")
+        await bot.get_channel(int(data["log_channel"])).send(embed=discord.Embed(title="ボットを使う時のご注意", description="このフォーラムにスレッドをコマンドを使わずにスレッドを作成しても\n絵文字リアクションとの連携機能は使用できないので\n必ずコマンドを使ってスレッドを作成してください。", color=discord.Color.blue()))
 
 #region 期限切れメッセージの動作
 
