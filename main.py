@@ -128,11 +128,12 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         channel = bot.get_channel(int(data["notice_group"][em]["thread_id"]))
         msg: discord.Message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
-            embed = discord.Embed(title = msg.content, description = f"[ここを押してメッセージを開く]({msg.jump_url})", color=discord.Color.blue())
+            embed = discord.Embed(title="", description = msg.content, color=discord.Color.blue())
             embed.set_author(name=msg.author.display_name, icon_url=msg.author.avatar.url)
-            forward = await channel.send(embed=embed, view=ViewForForward())
+            forward = await channel.send(embed=embed, view=ViewForForward(msg.jump_url), files=msg.attachments)
             data["notice_group"][em]["messages"][str(payload.message_id)] = {
                 "forwarded_msg_id": str(forward.id),
+                "msg_channel_id": str(payload.channel_id),
                 "user_id": str(payload.user_id),
                 "created_at": str(time.time())
             }
@@ -186,15 +187,11 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
                                 data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
                                 is_found = True
                                 Save()
+                                msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
+                                await itr.message.edit(view=WaitingExpire(expire_at, msg.jump_url))
+                                await Reply(itr, 0, "成功", f"{expire_at} に有効期限を設定しました", True)
                                 break
-                    if is_found:
-                        await Reply(itr,0, "成功", f"メッセージの有効期限を{expire_at}に設定しました", True)
-                        view = discord.ui.View.from_message(itr.message)
-                        view.remove_item(ViewForForward.SetExpire)
-                        view.add_item(discord.ui.Button(label=f"{expire_at} に削除されます", style=discord.ButtonStyle.secondary, disabled=True))
-                        
-                        
-                    else:
+                    if not is_found:
                         itr.command_failed = True
                         await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください", True)
             else:
@@ -204,19 +201,21 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
         except commands.MessageNotFound:
             itr.command_failed = True
             await Reply(itr,2, "エラー", "メッセージの取得に失敗しました", True)
-        except Exception as e:
-            itr.command_failed = True
-            await Reply(itr,2, "エラー", "例外が発生しました", True)
-            await bot.get_user(302957994675535872).send(f"エラーが発生しました: \n```{str(e)}```")
 
 class ViewForForward(discord.ui.View):
+    def __init__(self, jump_url: str):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Button(label="メッセージを開く", style=discord.ButtonStyle.link, url=jump_url))
+        
     @discord.ui.button(label="有効期限を設定", style=discord.ButtonStyle.primary)
     async def SetExpire(self, itr: discord.Interaction, button: discord.ui.Button):
         await itr.response.send_modal(ExpireModal())
 
-bot.add_view(ViewForForward(timeout=None))
-
-
+class WaitingExpire(discord.ui.View):
+    def __init__(self, expire_at: str, jump_url: str):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Button(label="メッセージを開く", style=discord.ButtonStyle.link, url=jump_url))
+        self.add_item(discord.ui.Button(label=f"{expire_at} に削除されます", style=discord.ButtonStyle.grey, disabled=True))
     
 #region コマンド
 
@@ -304,16 +303,19 @@ async def expire(itr: discord.Interaction, msg_link: str, expire_at: str):
                 await Reply(itr,2, "エラー", "有効期限が過去の時間です")
             else:
                 is_found = False
+                msg = discord.Message()
                 for emoji in data["notice_group"]:
                     for message in data["notice_group"][emoji]["messages"]:
                         if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == msg_link.split("/")[-1]:
                             data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
                             is_found = True
                             Save()
+                            msg_forward = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"]))
+                            msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
+                            await Reply(itr,0, "成功", f"メッセージの有効期限を{expire_at}に設定しました")
+                            await msg_forward.edit(view=WaitingExpire(expire_at, msg.jump_url))
                             break
-                if is_found:
-                    await Reply(itr,0, "成功", f"メッセージの有効期限を{expire_at}に設定しました")
-                else:
+                if not is_found:
                     itr.command_failed = True
                     await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください")
         else:
@@ -323,10 +325,6 @@ async def expire(itr: discord.Interaction, msg_link: str, expire_at: str):
     except commands.MessageNotFound:
         itr.command_failed = True
         await Reply(itr,2, "エラー", "メッセージの取得に失敗しました")
-    except Exception as e:
-        itr.command_failed = True
-        await Reply(itr,2, "エラー", "例外が発生しました")
-        await bot.get_user(302957994675535872).send(f"エラーが発生しました: \n```{str(e)}```")
 
 @tree.command(name='stats', description="指定されたボイスチャットチャンネルの状態を確認できます")
 @app_commands.describe(channel = "ボイスチャンネル")
@@ -370,7 +368,7 @@ async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
 
 #region 期限切れメッセージの動作
 
-@tasks.loop(seconds=15)
+@tasks.loop(seconds=5)
 async def Check_expires():
     global data
     now = time.time()
