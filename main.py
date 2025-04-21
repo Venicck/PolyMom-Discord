@@ -76,7 +76,7 @@ async def Reply(itr: discord.Interaction, type:int, title: str, message: str, pr
     """type: {0:成功,1:情報,2:エラー}"""
     colors = [discord.Color.green(), discord.Color.blue(), discord.Color.red()]
     emb = discord.Embed(title=title, description=message, color=colors[type])
-    await itr.response.send_message(embed=emb, ephemeral=private)
+    return await itr.response.send_message(embed=emb, ephemeral=private)
 
 async def Thread_Refresh():
     global data
@@ -128,7 +128,9 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         channel = bot.get_channel(int(data["notice_group"][em]["thread_id"]))
         msg: discord.Message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
-            forward = await msg.forward(channel)
+            embed = discord.Embed(title = msg.content, description = f"[ここを押してメッセージを開く]({msg.jump_url})", color=discord.Color.blue())
+            embed.set_author(name=msg.author.display_name, icon_url=msg.author.avatar.url)
+            forward = await channel.send(embed=embed, view=ViewForForward())
             data["notice_group"][em]["messages"][str(payload.message_id)] = {
                 "forwarded_msg_id": str(forward.id),
                 "user_id": str(payload.user_id),
@@ -155,7 +157,72 @@ async def on_guild_join(guild):
     embed.add_field(name="これで完了！", value="自動的にフォーラムに`コマンドライン`と`ログ`スレッドを追加するよ！")
     await guild.owner.send(embed=embed)
     
+#region UI系
+
+class ExpireModal(discord.ui.Modal, title="有効期限を設定してください"):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_item(discord.ui.TextInput(label="日付を入力", placeholder="YYYY/MM/DD (1月1日なら 01/01)", required=True, min_length=10,max_length=10))
+        self.add_item(discord.ui.TextInput(label="時間を入力", placeholder="HH:MM (未入力の場合はその日の23:59)", required=False, min_length=5,max_length=5))
+    
+    async def on_submit(self, itr: discord.Interaction):
+        expire_at = f"{self.children[0].value} {self.children[1].value}" if self.children[1].value != "" else self.children[0].value
+        try:
+            if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
+                if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
+                    expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
+                else:
+                    expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
+                    expire += 86400 # 1日後に設定(翌日になったら削除)
+                
+                if expire < time.time():
+                    itr.command_failed = True
+                    await Reply(itr,2, "エラー", "有効期限が過去の時間です", True)
+                else:
+                    is_found = False
+                    for emoji in data["notice_group"]:
+                        for message in data["notice_group"][emoji]["messages"]:
+                            if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == str(itr.message.id):
+                                data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
+                                is_found = True
+                                Save()
+                                break
+                    if is_found:
+                        await Reply(itr,0, "成功", f"メッセージの有効期限を{expire_at}に設定しました", True)
+                        view = discord.ui.View.from_message(itr.message)
+                        view.remove_item(ViewForForward.SetExpire)
+                        view.add_item(discord.ui.Button(label=f"{expire_at} に削除されます", style=discord.ButtonStyle.secondary, disabled=True))
+                        
+                        
+                    else:
+                        itr.command_failed = True
+                        await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください", True)
+            else:
+                itr.command_failed = True
+                await Reply(itr,2, "エラー", "有効期限の書式が間違っています\nYYYY/MM/DD HH:MM または YYYY/MM/DD の書式で指定してください", True)
+                
+        except commands.MessageNotFound:
+            itr.command_failed = True
+            await Reply(itr,2, "エラー", "メッセージの取得に失敗しました", True)
+        except Exception as e:
+            itr.command_failed = True
+            await Reply(itr,2, "エラー", "例外が発生しました", True)
+            await bot.get_user(302957994675535872).send(f"エラーが発生しました: \n```{str(e)}```")
+
+class ViewForForward(discord.ui.View):
+    @discord.ui.button(label="有効期限を設定", style=discord.ButtonStyle.primary)
+    async def SetExpire(self, itr: discord.Interaction, button: discord.ui.Button):
+        await itr.response.send_modal(ExpireModal())
+
+bot.add_view(ViewForForward(timeout=None))
+
+
+    
 #region コマンド
+
+@tree.command(name='help', description="このボットの使い方を表示します")
+async def help(itr: discord.Interaction):
+    await Reply(itr, 1, "このボットの使い方！", "このボットがある絵文字リアクションがついたメッセージをスレッドに転送する便利ボット！\n\n`/add_thread` で絵文字とスレッドを連携させてね！\n`/remove_thread` で絵文字とスレッドの連携を解除できるよ！\n`/expire` でスレッド内のメッセージの有効期限を設定できるよ！\n\n`/stats` でボイチャの状態を確認できるよ！", False)
 
 @tree.command(name='reload', description="jsonファイルを再読み込みします")
 async def reload(itr: discord.Interaction):
