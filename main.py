@@ -109,6 +109,9 @@ async def on_ready():
     await bot.change_presence(activity=discord.CustomActivity(name=activity))
     await tree.sync()
     await Thread_Refresh()
+    bot.add_view(ViewForForward())
+    bot.add_view(WaitingExpire())
+    bot.add_view(ExpireModal())
     Check_expires.start()
 
 
@@ -162,9 +165,9 @@ async def on_guild_join(guild):
 
 class ExpireModal(discord.ui.Modal, title="有効期限を設定してください"):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.add_item(discord.ui.TextInput(label="日付を入力", placeholder="YYYY/MM/DD (1月1日なら 01/01)", required=True, min_length=10,max_length=10))
-        self.add_item(discord.ui.TextInput(label="時間を入力", placeholder="HH:MM (未入力の場合はその日の23:59)", required=False, min_length=5,max_length=5))
+        super().__init__(timeout=None, *args, **kwargs)
+        self.add_item(discord.ui.TextInput(label="日付を入力", placeholder="YYYY/MM/DD (1月1日なら 01/01)", required=True, min_length=10,max_length=10, custom_id="date_input"))
+        self.add_item(discord.ui.TextInput(label="時間を入力", placeholder="HH:MM (未入力の場合はその日の23:59)", required=False, min_length=5,max_length=5, custom_id="time_input"))
     
     async def on_submit(self, itr: discord.Interaction):
         expire_at = f"{self.children[0].value} {self.children[1].value}" if self.children[1].value != "" else self.children[0].value
@@ -203,19 +206,19 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
             await Reply(itr,2, "エラー", "メッセージの取得に失敗しました", True)
 
 class ViewForForward(discord.ui.View):
-    def __init__(self, jump_url: str):
+    def __init__(self, jump_url: str = ""):
         super().__init__(timeout=None)
         self.add_item(discord.ui.Button(label="メッセージを開く", style=discord.ButtonStyle.link, url=jump_url))
         
-    @discord.ui.button(label="有効期限を設定", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="有効期限を設定", style=discord.ButtonStyle.primary, custom_id="BtnSetExpire")
     async def SetExpire(self, itr: discord.Interaction, button: discord.ui.Button):
         await itr.response.send_modal(ExpireModal())
 
 class WaitingExpire(discord.ui.View):
-    def __init__(self, expire_at: str, jump_url: str):
+    def __init__(self, expire_at: str = "N/A", jump_url: str = ""):
         super().__init__(timeout=None)
         self.add_item(discord.ui.Button(label="メッセージを開く", style=discord.ButtonStyle.link, url=jump_url))
-        self.add_item(discord.ui.Button(label=f"{expire_at} に削除されます", style=discord.ButtonStyle.grey, disabled=True))
+        self.add_item(discord.ui.Button(label=f"{expire_at} に削除されます", style=discord.ButtonStyle.grey, disabled=True, custom_id="ExpireTime"))
     
 #region コマンド
 
