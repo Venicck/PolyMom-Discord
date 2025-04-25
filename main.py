@@ -128,6 +128,9 @@ async def on_message(msg):
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     em = str(payload.emoji)
     if em in data["notice_group"]:
+        for emoji in data["notice_group"]: # 絵文字スレッドにあるメッセージにリアクションされたら無視
+            if payload.channel_id == data["notice_group"][emoji]["thread_id"]:
+                return
         channel = bot.get_channel(int(data["notice_group"][em]["thread_id"]))
         msg: discord.Message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
@@ -400,6 +403,5 @@ async def Check_expires():
 
 Load()
 
-# token = os.getenv("DISCORD_TOKEN")
-import Ptoken
-bot.run(Ptoken.get())
+token = os.getenv("DISCORD_TOKEN")
+bot.run(token)
