@@ -1,1 +1,2 @@
 discord.py==2.5.2
+firebase-admin==6.8.0

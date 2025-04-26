@@ -1,10 +1,15 @@
-import discord, os, json, time, asyncio, re, sys
+import discord, os, json, time, asyncio, re, firebase_admin
+from firebase_admin import credentials, firestore
 from discord.ext import tasks
 from discord import app_commands
 from discord.ext import commands
 
 #region 初期変数
 
+cred_dict = json.loads(os.environ["FIREBASE"])
+cred = credentials.Certificate(cred_dict)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 bot = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(bot)
 path_json = "./data.json"
@@ -27,28 +32,36 @@ time.timezone = 32400 # JST
 
 def Load():
     global data
-    if not os.path.exists(path_json):
-        with open(path_json, "w", encoding="utf-8_sig") as f:
-            json.dump({}, f, indent=4, ensure_ascii=False)
-            LogSys(0,"json file created")
-    try:
-        with open(path_json, "r", encoding="utf-8_sig") as f:
-            data = json.load(f)
-            Initialize()
-            LogSys(0,"json loaded")
-    except Exception as e:
-        LogSys(2,"json load failed")
-        print(f"{type(e)} : {str(e)}")
+    doc = db.collection("bot").document("data").get()
+    if doc.exists:
+        data = doc.to_dict()
+        LogSys(0,"json loaded")
+    else:
+        Initialize()
+    # if not os.path.exists(path_json):
+    #     with open(path_json, "w", encoding="utf-8_sig") as f:
+    #         json.dump({}, f, indent=4, ensure_ascii=False)
+    #         LogSys(0,"json file created")
+    # try:
+    #     with open(path_json, "r", encoding="utf-8_sig") as f:
+    #         data = json.load(f)
+    #         Initialize()
+    #         LogSys(0,"json loaded")
+    # except Exception as e:
+    #     LogSys(2,"json load failed")
+    #     print(f"{type(e)} : {str(e)}")
 
 def Save():
-    global data 
-    try:
-        with open(path_json, "w", encoding="utf-8_sig") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-            LogSys(0,"json saved")
-    except Exception as e:
-        LogSys(2,"json file save failed")
-        print(f"{type(e)} : {str(e)}")
+    global data
+    db.collection("bot").document("data").set(data)
+    LogSys(0,"json saved")
+    # try:
+    #     with open(path_json, "w", encoding="utf-8_sig") as f:
+    #         json.dump(data, f, indent=4, ensure_ascii=False)
+    #         LogSys(0,"json saved")
+    # except Exception as e:
+    #     LogSys(2,"json file save failed")
+    #     print(f"{type(e)} : {str(e)}")
 
 def Initialize():
     global data
