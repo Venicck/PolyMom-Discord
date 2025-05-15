@@ -111,8 +111,8 @@ async def LogCh(channel_id, string: str):
 
 def LogSys(type:int, string: str):
     """type: {0:成功, 1:情報, 2:エラー, 3:その他}"""
-    colors = ["\033[32m", "\033[36m", "\033[31m", "\033[37m"]
-    print(f"[{time.strftime('%Y/%m/%d %H:%M:%S')}] {colors[type]} {string} \033[0m")
+    colors = ["Success", "Info", "Error", "Other"]
+    print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {colors[type]} | {string} ")
 
 #region イベント
 @bot.event
@@ -142,7 +142,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     em = str(payload.emoji)
     if em in data["notice_group"]:
         for emoji in data["notice_group"]: # 絵文字スレッドにあるメッセージにリアクションされたら無視
-            if payload.channel_id == data["notice_group"][emoji]["thread_id"]:
+            if str(payload.channel_id) == data["notice_group"][emoji]["thread_id"]:
                 return
         channel = bot.get_channel(int(data["notice_group"][em]["thread_id"]))
         msg: discord.Message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
@@ -176,20 +176,50 @@ async def on_guild_join(guild):
     embed.add_field(name="2. フォーラムを指定", value="`/set_forum` を使って1.のフォーラムを指定してね！")
     embed.add_field(name="これで完了！", value="自動的にフォーラムに`コマンドライン`と`ログ`スレッドを追加するよ！")
     await guild.owner.send(embed=embed)
+
+@bot.event
+async def on_guild_channel_delete(channel):
+    if isinstance(channel, discord.TextChannel):
+        for emoji in data["notice_group"]:
+            if "ignore_channels" in data["notice_group"][emoji]:
+                if str(channel.id) in data["notice_group"][emoji]["ignore_channels"]:
+                    data["notice_group"][emoji]["ignore_channels"].remove(str(channel.id))
+                    Save()
+                    await bot.get_channel(int(data["log_channel"])).send(f"テキストチャンネルが削除されたため、 {emoji} の無視チャンネルリストから #{channel.name} を削除しました。")
+
+@bot.event
+async def on_message_delete(msg):
+    if msg.author.id == bot.user.id: # ボットが転送したメッセージが削除されたらDataから削除
+        for emoji in data["notice_group"]:
+            msg_to_delete = ""
+            for message in data["notice_group"][emoji]["messages"]:
+                if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == str(msg.id):
+                    msg_to_delete = message
+            if msg_to_delete != "":
+                del data["notice_group"][emoji]["messages"][msg_to_delete]
+                Save()
+    else: # 転送されたメッセージの元メッセージが削除されたらDataから削除 + スレッド内も削除
+        for emoji in data["notice_group"]:
+            if str(msg.id) in data["notice_group"][emoji]["messages"]:
+                await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][str(msg.id)]["forwarded_msg_id"])).delete()
+                del data["notice_group"][emoji]["messages"][str(msg.id)]
+                Save()
     
 #region UI系
 
 class ExpireModal(discord.ui.Modal, title="有効期限を設定してください"):
     def __init__(self, *args, **kwargs):
         super().__init__(timeout=None, *args, **kwargs)
-        self.add_item(discord.ui.TextInput(label="日付を入力", placeholder="YYYY/MM/DD (1月1日なら 01/01)", required=True, min_length=10,max_length=10, custom_id="date_input"))
+        self.add_item(discord.ui.TextInput(label="日付を入力", placeholder="YYYY/MM/DD (1月1日なら 01/01)", required=False, min_length=10,max_length=10, custom_id="date_input"))
         self.add_item(discord.ui.TextInput(label="時間を入力", placeholder="HH:MM (未入力の場合はその日の23:59)", required=False, min_length=5,max_length=5, custom_id="time_input"))
     
     async def on_submit(self, itr: discord.Interaction):
         expire_at = f"{self.children[0].value} {self.children[1].value}" if self.children[1].value != "" else self.children[0].value
         try:
-            if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
-                if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
+            if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at) or re.fullmatch(r"\d{2}:\d{2}", expire_at):
+                if re.fullmatch(r"\d{2}:\d{2}", expire_at):
+                    expire = time.time() + (int(expire_at.split(":")[0]) * 3600) + (int(expire_at.split(":")[1]) * 60)
+                elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
                     expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
                 else:
                     expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
@@ -306,12 +336,111 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
         except:
             await Reply(itr,2, "エラー", "スレッドの削除に失敗しました。")
 
+@tree.command(name='add_ignore_ch', description="転送を無視するチャンネルを追加します")
+@app_commands.describe(channels = "無視対象のチャンネル (メンション, 複数可)", emoji = "絵文字1文字")
+async def add_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
+    global data
+    if not (is_discord_emoji(emoji) or is_unicode_emoji(emoji)):
+        itr.command_failed = True
+        await Reply(itr,2, "エラー", "絵文字が適正ではありません")
+    else:
+        ch_mentions = re.findall("<#\d+>", channels)
+        if len(ch_mentions) == 0:
+            itr.command_failed = True
+            await Reply(itr,2, "エラー", "テキストチャンネルを指定してください。")
+        else:
+            chs = []
+            for channel in ch_mentions:
+                try:
+                    chs.append(bot.get_channel(channel[2:-1]).id)
+                except:
+                    pass
+            if len(chs) == 0:
+                itr.command_failed = True
+                await Reply(itr,2, "エラー", "指定されたテキストチャンネルはどれも見つかりませんでした。")
+            else:
+                embed = discord.Embed(title="無視チャンネルリストに追加", description=f"以下のチャンネルでは {emoji} のメッセージを無視するようになります。", color=discord.Color.blue())
+                if not "ignore_channels" in data["notice_group"][emoji]:
+                    data["notice_group"][emoji]["ignore_channels"] = []
+                for ch in chs:
+                    if str(ch) in data["notice_group"][emoji]["ignore_channels"]:
+                        embed.add_field(name=f"<#{ch}>", value=f"既に追加されています。", inline=False)
+                    else:
+                        data["notice_group"][emoji]["ignore_channels"].append(str(ch))
+                        embed.add_field(name=f"<#{ch}>", value=f"追加されました。", inline=False)
+                Save()
+                await itr.response.send_message(embed=embed)
+
+@tree.command(name='remove_ignore_ch', description="転送を無視するチャンネルを削除します")
+@app_commands.describe(channels = "無視対象のチャンネル (メンション, 複数可)", emoji = "絵文字1文字")
+async def remove_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
+    global data
+    if not (is_discord_emoji(emoji) or is_unicode_emoji(emoji)):
+        itr.command_failed = True
+        await Reply(itr,2, "エラー", "絵文字が適正ではありません")
+    else:
+        if not emoji in data["notice_group"]:
+            itr.command_failed = True
+            await Reply(itr,2, "エラー", "その絵文字で登録されているスレッドはありません。")    
+            return
+        ch_mentions = re.findall("<#\d+>", channels)
+        if len(ch_mentions) == 0:
+            itr.command_failed = True
+            await Reply(itr,2, "エラー", "テキストチャンネルを指定してください。")
+        else:
+            chs = []
+            for channel in ch_mentions:
+                try:
+                    chs.append(bot.get_channel(channel[2:-1]).id)
+                except:
+                    pass
+            if len(chs) == 0:
+                itr.command_failed = True
+                await Reply(itr,2, "エラー", "指定されたテキストチャンネルはどれも見つかりませんでした。")
+            else:
+                embed = discord.Embed(title="無視チャンネルリストから削除", description=f"以下のチャンネルでは {emoji} のメッセージを無視しなくなります。", color=discord.Color.blue())
+                if not "ignore_channels" in data["notice_group"][emoji]:
+                    data["notice_group"][emoji]["ignore_channels"] = []
+                for ch in chs:
+                    if str(ch) in data["notice_group"][emoji]["ignore_channels"]:
+                        data["notice_group"][emoji]["ignore_channels"].remove(str(ch))
+                        embed.add_field(name=f"<#{ch}>", value=f"無視リストから削除しました。", inline=False)
+                    else:
+                        
+                        embed.add_field(name=f"<#{ch}>", value=f"無視リストにないチャンネルです。", inline=False)
+                Save()
+                await itr.response.send_message(embed=embed)
+
+@tree.command(name='stats_thread', description="絵文字と連携されているスレッドの詳細を確認します")
+async def stats_thread(itr: discord.Interaction, emoji: str):
+    if not (is_discord_emoji(emoji) or is_unicode_emoji(emoji)):
+        itr.command_failed = True
+        await Reply(itr,2, "エラー", "絵文字が適正ではありません")
+    else:
+        if not emoji in data["notice_group"]:
+            itr.command_failed = True
+            await Reply(itr,2, "エラー", "その絵文字で登録されているスレッドはありません。")    
+            return
+        else:
+            embed = discord.Embed(title="スレッドの詳細", description=f"絵文字: {emoji}", color=discord.Color.blue())
+            embed.add_field(name="スレッド", value=f"<#{data["notice_group"][emoji]["thread_id"]}>", inline=False)
+            embed.add_field(name="作成者", value=f"<@{data['notice_group'][emoji]['owner']}>", inline=False)
+            embed.add_field(name="作成日時", value=time.strftime("%Y/%m/%d %H:%M:%S", time.localtime(float(data["notice_group"][emoji]["created_at"]))), inline=False)
+            if "ignore_channels" in data["notice_group"][emoji]:
+                ignore_channels = "\n".join([f"<#{ch}>" for ch in data["notice_group"][emoji]["ignore_channels"]])
+                embed.add_field(name="無視チャンネル", value=ignore_channels, inline=False)
+            else:
+                embed.add_field(name="無視チャンネル", value="なし", inline=False)
+            await itr.response.send_message(embed=embed)
+
 @tree.command(name='expire', description="スレッド内のメッセージの有効期限を設定できます")
-@app_commands.describe(msg_link = "**転送された**メッセージのリンク", expire_at = "有効期限 (YYYY/MM/DD HH:MM or YYYY/MM/DD の書式)")
+@app_commands.describe(msg_link = "**転送された**メッセージのリンク", expire_at = "有効期限 (YYYY/MM/DD HH:MM or YYYY/MM/DD or HH:MM の書式)")
 async def expire(itr: discord.Interaction, msg_link: str, expire_at: str):
     try:
-        if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
-            if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
+        if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at) or re.fullmatch(r"\d{2}:\d{2}", expire_at):
+            if re.fullmatch(r"\d{2}:\d{2}", expire_at):
+                expire = time.time() + (int(expire_at.split(":")[0]) * 3600) + (int(expire_at.split(":")[1]) * 60)
+            elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
                 expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
             else:
                 expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
