@@ -149,12 +149,26 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
             embed = discord.Embed(title="", description = msg.content, color=discord.Color.blue())
             embed.set_author(name=msg.author.display_name, icon_url=msg.author.avatar.url)
-            forward = await channel.send(embed=embed, view=ViewForForward(msg.jump_url), files=msg.attachments)
+            _is_image_set = False
+            attachments_str = []
+            attachments_dict = {}
+            for attachment in msg.attachments:
+                if (attachment.url.endswith(".png") or attachment.url.endswith(".jpg") or attachment.url.endswith(".jpeg") or attachment.url.endswith(".gif") or attachment.url.endswith(".webp")) and not _is_image_set:
+                    embed.set_image(url=attachment.url)
+                    _is_image_set = True
+                else:
+                    attachments_str.append(f"[{attachment.filename}]({attachment.url})")
+                attachments_dict[str(attachment.filename)] = str(attachment.url)
+            if len(attachments_str) > 0:
+                embed.add_field(name="`添付ファイル`", value="\n".join(attachments_str), inline=False)
+            
+            forward = await channel.send(embed=embed, view=ViewForForward(msg.jump_url))
             data["notice_group"][em]["messages"][str(payload.message_id)] = {
                 "forwarded_msg_id": str(forward.id),
                 "msg_channel_id": str(payload.channel_id),
                 "user_id": str(payload.user_id),
-                "created_at": str(time.time())
+                "created_at": str(time.time()),
+                "attachments": attachments_dict
             }
             Save()
 
