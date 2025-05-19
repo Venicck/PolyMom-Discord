@@ -358,7 +358,7 @@ async def add_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
         itr.command_failed = True
         await Reply(itr,2, "エラー", "絵文字が適正ではありません")
     else:
-        ch_mentions = re.findall("<#\d+>", channels)
+        ch_mentions = re.findall(r"<#\d+>", channels)
         if len(ch_mentions) == 0:
             itr.command_failed = True
             await Reply(itr,2, "エラー", "テキストチャンネルを指定してください。")
@@ -397,7 +397,7 @@ async def remove_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
             itr.command_failed = True
             await Reply(itr,2, "エラー", "その絵文字で登録されているスレッドはありません。")    
             return
-        ch_mentions = re.findall("<#\d+>", channels)
+        ch_mentions = re.findall(r"<#\d+>", channels)
         if len(ch_mentions) == 0:
             itr.command_failed = True
             await Reply(itr,2, "エラー", "テキストチャンネルを指定してください。")
