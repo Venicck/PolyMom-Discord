@@ -153,7 +153,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             attachments_str = []
             attachments_dict = {}
             for attachment in msg.attachments:
-                if (attachment.url.endswith(".png") or attachment.url.endswith(".jpg") or attachment.url.endswith(".jpeg") or attachment.url.endswith(".gif") or attachment.url.endswith(".webp")) and not _is_image_set:
+                if (attachment.filename.endswith(".png") or attachment.filename.endswith(".jpg") or attachment.filename.endswith(".jpeg") or attachment.filename.endswith(".gif") or attachment.filename.endswith(".webp")) and not _is_image_set:
                     embed.set_image(url=attachment.url)
                     _is_image_set = True
                 else:
