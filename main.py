@@ -161,7 +161,7 @@ def Make_embed_forecast(when = "today"):
     if not weather_data:
         return None
     
-    forecast_date = time.strftime("%Y/%m/%d")
+    forecast_date = time.strftime("%Y/%m/%d") if when == "today" else time.strftime("%Y/%m/%d", time.localtime(time.time() + 86400))
     
     """サイドバーのカラーを天気で設定する"""
     sunny = 0
@@ -172,11 +172,11 @@ def Make_embed_forecast(when = "today"):
     for t in data:
         if data[t]["weather"] == "晴れ":
             sunny += 1
-        elif data[t]["weather"] == "曇り":
+        elif "曇り" in data[t]["weather"]:
             cloudy += 1
-        elif data[t]["weather"] == "雨":
+        elif "雨" in data[t]["weather"]:
             rainy += 1
-        elif data[t]["weather"] == "雪":
+        elif "雪" in data[t]["weather"]:
             snowy += 1
     if (rainy == 0 and snowy == 0 and cloudy == 0):
         color = discord.Colour.orange()
@@ -189,7 +189,7 @@ def Make_embed_forecast(when = "today"):
     embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
     embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在")
     for t in data:
-        embed.add_field(name=f"{t} 時", value=f"気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
+        embed.add_field(name=f"{t} 時", value=f"天気:{"晴れ" if weather_data[when][t]["weather"] == "晴れ" else f"**{weather_data[when][t]["weather"]}**"} \n気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
     return embed
 
 #region イベント
@@ -386,8 +386,8 @@ class WaitingExpire(discord.ui.View):
 
 @tree.command(name='forecast', description="天気予報を表示します")
 @app_commands.describe(when = "0:今日, 1:明日")
-async def forecast(itr: discord.Interaction, when: int = 0):
-    emb = Make_embed_forecast("today" if when == 0 else "tomorrow")
+async def forecast(itr: discord.Interaction, when: bool):
+    emb = Make_embed_forecast("today" if when else "tomorrow")
     await itr.response.send_message(embed=emb)
 
 @tree.command(name='help', description="このボットの使い方を表示します")
