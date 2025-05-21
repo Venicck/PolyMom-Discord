@@ -1,4 +1,5 @@
-import discord, os, json, time, asyncio, re, firebase_admin
+import discord, os, json, time, asyncio, re, firebase_admin, random, requests
+from bs4 import BeautifulSoup
 from firebase_admin import credentials, firestore
 from discord.ext import tasks
 from discord import app_commands
@@ -12,6 +13,7 @@ firebase_admin.initialize_app(cred)
 db = firestore.client()
 bot = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(bot)
+yahoo_url = "https://weather.yahoo.co.jp/weather/13/4410/13208.html"
 path_json = "./data.json"
 admins = ["302957994675535872", "711540575043715172", "747726536844771350"]
 data={}
@@ -27,6 +29,7 @@ emoji_pattern = re.compile(
     "]+"
 )
 time.timezone = 32400 # JST
+msglogmode = False
 
 #region ファイル操作
 
@@ -114,6 +117,81 @@ def LogSys(type:int, string: str):
     colors = ["Success", "Info", "Error", "Other"]
     print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {colors[type]} | {string} ")
 
+def Get_weather_yahoo():
+    global yahoo_url
+    weather_data = {}
+    req = requests.get(yahoo_url)
+    if req.status_code != 200:
+        return {}
+    else:
+        soup = BeautifulSoup(req.text, "html.parser")
+        weather_data["today"] = {}
+        weather_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(2)')
+        temp_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(3)')
+        humid_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(4)')
+        rain_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(5)')
+        wind_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(6)')
+        for i in range(0, 8):
+            weather_data["today"][f"{i*3} - {(i+1) * 3}"] = {
+                "weather": weather_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "temp": temp_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "humidity": humid_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "rain": rain_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "wind": wind_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+            }
+        weather_data["tomorrow"] = {}
+        weather_tb = soup.select('#yjw_pinpoint_tomorrow > table > tbody > tr:nth-of-type(2)')
+        temp_tb = soup.select('#yjw_pinpoint_tomorrow > table > tbody > tr:nth-of-type(3)')
+        humid_tb = soup.select('#yjw_pinpoint_tomorrow > table > tbody > tr:nth-of-type(4)')
+        rain_tb = soup.select('#yjw_pinpoint_tomorrow > table > tbody > tr:nth-of-type(5)')
+        wind_tb = soup.select('#yjw_pinpoint_tomorrow > table > tbody > tr:nth-of-type(6)')
+        for i in range(0, 8):
+            weather_data["tomorrow"][f"{i*3} - {(i+1) * 3}"] = {
+                "weather": weather_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "temp": temp_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "humidity": humid_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "rain": rain_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+                "wind": wind_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
+            }
+        return weather_data
+
+def Make_embed_forecast(when = "today"):
+    global yahoo_url
+    weather_data = Get_weather_yahoo()
+    if not weather_data:
+        return None
+    
+    forecast_date = time.strftime("%Y/%m/%d")
+    
+    """サイドバーのカラーを天気で設定する"""
+    sunny = 0
+    rainy = 0
+    snowy = 0
+    cloudy = 0
+    data = weather_data[when]
+    for t in data:
+        if data[t]["weather"] == "晴れ":
+            sunny += 1
+        elif data[t]["weather"] == "曇り":
+            cloudy += 1
+        elif data[t]["weather"] == "雨":
+            rainy += 1
+        elif data[t]["weather"] == "雪":
+            snowy += 1
+    if (rainy == 0 and snowy == 0 and cloudy == 0):
+        color = discord.Colour.orange()
+    elif (rainy == 0 and snowy == 0 and cloudy > 0):
+        color = discord.Colour.light_gray()
+    elif (rainy > snowy):
+        color = discord.Colour.blue()
+    else:
+        color = discord.Colour.from_rgb(255, 255, 255)
+    embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
+    embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在")
+    for t in data:
+        embed.add_field(name=f"{t} 時", value=f"気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
+    return embed
+
 #region イベント
 @bot.event
 async def on_ready():
@@ -130,13 +208,37 @@ async def on_ready():
 
 @bot.event
 async def on_message(msg):
+    global data, msglogmode
+    for mention in msg.mentions:
+        if mention.id == bot.user.id:
+            await msg.add_reaction("👀")
+            break
     if (msg.author.id == 302957994675535872):
         if msg.content == "--stop":
             await msg.add_reaction("💤")
             Check_expires.stop()
             await bot.close()
             await asyncio.sleep(2)
-    
+        elif msg.content == "--msglog":
+            msglogmode = not msglogmode
+            if msglogmode:
+                await msg.add_reaction("✅")
+            else:
+                await msg.add_reaction("❌")
+        elif msg.content == "--export":
+            file = open('data_temp.json', 'w', encoding='utf-8')
+            file.write(json.dumps(data, indent=4, ensure_ascii=False))
+            file.close()
+            await msg.channel.send(f"jsonデータをエクスポートしました。", file=discord.File(fp='data_temp.json', filename=f"{time.strftime('%Y%m%d_%H%M%S')}-Polymom-Data.json"))
+            os.remote('data_temp.json')
+    if msglogmode:
+        print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
+
+@bot.event
+async def on_command(ctx):
+    if msglogmode:
+        print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {ctx.author.display_name}({ctx.author.id}) : command | {ctx.command} {str(ctx.kwargs)}")
+
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     em = str(payload.emoji)
@@ -277,10 +379,16 @@ class ViewForForward(discord.ui.View):
 class WaitingExpire(discord.ui.View):
     def __init__(self, expire_at: str = "N/A", jump_url: str = ""):
         super().__init__(timeout=None)
-        self.add_item(discord.ui.Button(label="メッセージを開く", style=discord.ButtonStyle.link, url=jump_url))
         self.add_item(discord.ui.Button(label=f"{expire_at} に削除されます", style=discord.ButtonStyle.grey, disabled=True, custom_id="ExpireTime"))
+        self.add_item(discord.ui.Button(label="メッセージを開く", style=discord.ButtonStyle.link, url=jump_url))
     
 #region コマンド
+
+@tree.command(name='forecast', description="天気予報を表示します")
+@app_commands.describe(when = "0:今日, 1:明日")
+async def forecast(itr: discord.Interaction, when: int = 0):
+    await itr.response.defer(thinking=True)
+    await itr.response.send_message(embed=Make_embed_forecast("today" if when == 0 else "tomorrow"), ephemeral=False)
 
 @tree.command(name='help', description="このボットの使い方を表示します")
 async def help(itr: discord.Interaction):
@@ -295,6 +403,8 @@ async def reload(itr: discord.Interaction):
     else:
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
+
+
 
 @tree.command(name='add_thread', description="絵文字に対応するスレッドを作成します")
 @app_commands.describe(emoji = "絵文字1文字", thread_name = "スレッド名")
@@ -358,7 +468,7 @@ async def add_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
         itr.command_failed = True
         await Reply(itr,2, "エラー", "絵文字が適正ではありません")
     else:
-        ch_mentions = re.findall(r"<#\d+>", channels)
+        ch_mentions = re.findall(r"<#(\d{17,20})>", channels)
         if len(ch_mentions) == 0:
             itr.command_failed = True
             await Reply(itr,2, "エラー", "テキストチャンネルを指定してください。")
@@ -366,7 +476,7 @@ async def add_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
             chs = []
             for channel in ch_mentions:
                 try:
-                    chs.append(bot.get_channel(channel[2:-1]).id)
+                    chs.append(bot.get_channel(int(channel)).id)
                 except:
                     pass
             if len(chs) == 0:
@@ -397,7 +507,7 @@ async def remove_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
             itr.command_failed = True
             await Reply(itr,2, "エラー", "その絵文字で登録されているスレッドはありません。")    
             return
-        ch_mentions = re.findall(r"<#\d+>", channels)
+        ch_mentions = re.findall(r"<#(\d{17,20})>", channels)
         if len(ch_mentions) == 0:
             itr.command_failed = True
             await Reply(itr,2, "エラー", "テキストチャンネルを指定してください。")
@@ -405,7 +515,7 @@ async def remove_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
             chs = []
             for channel in ch_mentions:
                 try:
-                    chs.append(bot.get_channel(channel[2:-1]).id)
+                    chs.append(bot.get_channel(int(channel)).id)
                 except:
                     pass
             if len(chs) == 0:
