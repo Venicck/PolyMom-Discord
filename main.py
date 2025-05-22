@@ -385,9 +385,9 @@ class WaitingExpire(discord.ui.View):
 #region コマンド
 
 @tree.command(name='forecast', description="天気予報を表示します")
-@app_commands.describe(when = "0:今日, 1:明日")
-async def forecast(itr: discord.Interaction, when: bool):
-    emb = Make_embed_forecast("today" if when else "tomorrow")
+@app_commands.describe(when = "False:今日 True:明日")
+async def forecast(itr: discord.Interaction, when: bool = False):
+    emb = Make_embed_forecast("today" if not when else "tomorrow")
     await itr.response.send_message(embed=emb)
 
 @tree.command(name='help', description="このボットの使い方を表示します")
