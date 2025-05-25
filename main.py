@@ -362,7 +362,7 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
             return
         try:
             if re.fullmatch(r"\d{2}:\d{2}", expire_at[1:]):
-                expire = time.mktime(time.strptime(expire_at[1:], "%H:%M"))
+                expire = time.mktime(time.strptime(f"{time.strftime("%Y/%m/%d")}{expire_at}", "%Y/%m/%d %H:%M"))
             elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
                 expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
             elif re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
@@ -504,14 +504,13 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
             await Reply(itr, 0, "完了", "天気予報の自動通知をリセットしました", True)
         else:
             if channel is not None:
-                try:
-                    ch_id = re.match(r"<#(\d{17,20})>", channel)
-                    a = bot.get_channel(int(ch_id))
+                    ch_id = re.findall(r"<#(\d{17,20})>", channel)
+                    if len(ch_id) == 0:
+                        itr.command_failed = True
+                        await Reply(itr, 2, "エラー", "チャンネルのメンションが不正です。正しい形式で指定してください。 ex) <#123456789012345678>", True)
+                        return
+                    a = bot.get_channel(int(ch_id[0]))
                     data["weather"]["msg_channel"] = str(a.id)
-                except:
-                    itr.command_failed = True
-                    await Reply(itr, 2, "エラー", "指定されたチャンネルが見つかりませんでした", True)
-                    return
             if times is not None:
                 ls = times.split(",")
                 if len(ls) != 3:
@@ -700,49 +699,6 @@ async def stats_thread(itr: discord.Interaction, emoji: str):
             else:
                 embed.add_field(name="無視チャンネル", value="なし", inline=False)
             await itr.response.send_message(embed=embed)
-
-@tree.command(name='expire', description="スレッド内のメッセージの有効期限を設定できます")
-@app_commands.describe(msg_link = "**転送された**メッセージのリンク", expire_at = "有効期限 (YYYY/MM/DD HH:MM or YYYY/MM/DD or HH:MM の書式)")
-async def expire(itr: discord.Interaction, msg_link: str, expire_at: str):
-    try:
-        if re.fullmatch(r"\d{2}:\d{2}", expire_at[1:]):
-            expire = time.mktime(time.strptime(expire_at[1:], "%H:%M"))
-        elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
-            expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
-        elif re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
-            expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
-            expire += 86400 # 1日後に設定(翌日になったら削除)
-        else:
-            itr.command_failed = True
-            await Reply(itr,2, "エラー", "有効期限の書式が間違っています\nYYYY/MM/DD HH:MM または YYYY/MM/DD の書式で指定してください")
-            return
-        
-        if expire < time.time():
-                itr.command_failed = True
-                await Reply(itr,2, "エラー", "有効期限が過去の時間です")
-        else:
-            is_found = False
-            msg = discord.Message()
-            for emoji in data["notice_group"]:
-                for message in data["notice_group"][emoji]["messages"]:
-                    if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == msg_link.split("/")[-1]:
-                        data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
-                        is_found = True
-                        Save()
-                        msg_forward = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"]))
-                        msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
-                        await Reply(itr,0, "成功", f"メッセージの有効期限を{expire_at}に設定しました")
-                        await msg_forward.edit(view=WaitingExpire(expire_at, msg.jump_url))
-                        break
-            if not is_found:
-                itr.command_failed = True
-                await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください")
-
-    except commands.MessageNotFound:
-        itr.command_failed = True
-        await Reply(itr,2, "エラー", "メッセージの取得に失敗しました")
-            
-            
 
 @tree.command(name='stats', description="指定されたボイスチャットチャンネルの状態を確認できます")
 @app_commands.describe(channel = "ボイスチャンネル")
