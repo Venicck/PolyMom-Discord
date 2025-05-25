@@ -747,15 +747,7 @@ Load()
 
 #region タスク
 
-temp = [DaytimeToList(data["weather"]["notify_time"][0]), DaytimeToList(data["weather"]["notify_time"][1]), DaytimeToList(data["weather"]["notify_time"][2])]
-timezone = datetime.timezone(datetime.timedelta(hours=9))  # 日本時間 (UTC+9)
-forecast_times = [
-    datetime.time(hour=temp[0][0], minute=temp[0][1], second=temp[0][2], tzinfo=timezone),
-    datetime.time(hour=temp[1][0], minute=temp[1][1], second=temp[1][2], tzinfo=timezone),
-    datetime.time(hour=temp[2][0], minute=temp[2][1], second=temp[2][2], tzinfo=timezone)
-]
-
-@tasks.loop(seconds=5)
+@tasks.loop(seconds=10)
 async def Check_expires():
     global data
     now = time.time()
@@ -783,7 +775,7 @@ async def Check_expires():
         Save()
 
 #region 天気予報
-@tasks.loop(time=forecast_times)
+@tasks.loop(seconds=1)
 async def Auto_Forecast():
     global data
     nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
