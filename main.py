@@ -273,7 +273,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         msg: discord.Message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
             embed = discord.Embed(title="", description = msg.content, color=discord.Color.blue())
-            embed.set_author(name=msg.author.display_name, icon_url=msg.author.avatar.url)
+            embed.set_author(name=msg.author.display_name, icon_url=msg.author.display_avatar.url)
             embed.set_footer(text=f"{msg.created_at.strftime("%Y/%m/%d %H:%M:%S")} - #{msg.channel.name}")
             attachments_str = []
             attachments_dict = {}
