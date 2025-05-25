@@ -170,9 +170,9 @@ def Get_weather_yahoo():
             }
         return weather_data
 
-def Make_embed_forecast(when = "today"):
+def Make_embed_forecast(when = "today", customdata = None):
     global yahoo_url
-    weather_data = Get_weather_yahoo()
+    weather_data = Get_weather_yahoo() if customdata is None else customdata
     if not weather_data:
         return None
     
@@ -205,7 +205,7 @@ def Make_embed_forecast(when = "today"):
         color = discord.Colour.from_rgb(255, 255, 255)
         do_mention = True
     embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
-    embed.set_footer(text=f"<t:{math.floor(time.time())}> 現在に取得")
+    embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在に取得")
     for t in data:
         embed.add_field(name=f"{t} 時", value=f"天気:{"晴れ" if weather_data[when][t]["weather"] == "晴れ" else f"**{weather_data[when][t]["weather"]}**"} \n気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
     return (embed, do_mention)
@@ -226,8 +226,11 @@ async def on_ready():
 
 
 @bot.event
-async def on_message(msg):
+async def on_message(msg : discord.Message):
     global data, msglogmode
+    if len(msg.poll) > 0:
+        for pl in msg.poll:
+            await msg.create_thread(name=pl.question, reason="投票での議論のためのスレッド作成")
     for mention in msg.mentions:
         if mention.id == bot.user.id:
             await msg.add_reaction("👀")
@@ -270,18 +273,19 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
             embed = discord.Embed(title="", description = msg.content, color=discord.Color.blue())
             embed.set_author(name=msg.author.display_name, icon_url=msg.author.avatar.url)
-            embed.set_footer(text=f"<t:{msg.created_at.timestamp()}> | #{msg.channel.name}")
-            _is_image_set = False
+            embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S', msg.created_at.timestamp())}　-　#{msg.channel.name}")
             attachments_str = []
             attachments_dict = {}
+            image_urls = []
             for attachment in msg.attachments:
-                if (attachment.filename.endswith(".png") or attachment.filename.endswith(".jpg") or attachment.filename.endswith(".jpeg") or attachment.filename.endswith(".gif") or attachment.filename.endswith(".webp")) and not _is_image_set:
-                    embed.set_image(url=attachment.url)
-                    _is_image_set = True
+                if (attachment.filename.endswith(".png") or attachment.filename.endswith(".jpg") or attachment.filename.endswith(".jpeg") or attachment.filename.endswith(".gif") or attachment.filename.endswith(".webp")):
+                    image_urls.append(attachment.url)
                 else:
                     attachments_str.append(f"[{attachment.filename}]({attachment.url})")
                 attachments_dict[str(attachment.filename)] = str(attachment.url)
             if len(attachments_str) > 0:
+                if len(image_urls) > 0:
+                    embed.set_image(url=image_urls)
                 embed.add_field(name="`添付ファイル`", value="\n".join(attachments_str), inline=False)
             
             forward = await channel.send(embed=embed, view=ViewForForward(msg.jump_url))
@@ -351,38 +355,43 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
         self.add_item(discord.ui.TextInput(label="時間を入力", placeholder="HH:MM (未入力の場合はその日の23:59)", required=False, min_length=5,max_length=5, custom_id="time_input"))
     
     async def on_submit(self, itr: discord.Interaction):
-        expire_at = f"{self.children[0].value} {self.children[1].value}" if self.children[1].value != "" else self.children[0].value
+        expire_at = f"{self.children[0].value} {self.children[1].value}"
+        if expire_at == " ":
+            itr.command_failed = True
+            await Reply(itr,2, "エラー", "日付または時刻が入力されていません。", True)
+            return
         try:
-            if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at) or re.fullmatch(r"\d{2}:\d{2}", expire_at):
-                if re.fullmatch(r"\d{2}:\d{2}", expire_at):
-                    expire = time.time() + (int(expire_at.split(":")[0]) * 3600) + (int(expire_at.split(":")[1]) * 60)
-                elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
-                    expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
-                else:
-                    expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
-                    expire += 86400 # 1日後に設定(翌日になったら削除)
-                
-                if expire < time.time():
-                    itr.command_failed = True
-                    await Reply(itr,2, "エラー", "有効期限が過去の時間です", True)
-                else:
-                    is_found = False
-                    for emoji in data["notice_group"]:
-                        for message in data["notice_group"][emoji]["messages"]:
-                            if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == str(itr.message.id):
-                                data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
-                                is_found = True
-                                Save()
-                                msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
-                                await itr.message.edit(view=WaitingExpire(expire_at, msg.jump_url))
-                                await Reply(itr, 0, "成功", f"{expire_at} に有効期限を設定しました", True)
-                                break
-                    if not is_found:
-                        itr.command_failed = True
-                        await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください", True)
+            if re.fullmatch(r"\d{2}:\d{2}", expire_at[1:]):
+                expire = time.mktime(time.strptime(expire_at[1:], "%H:%M"))
+            elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
+                expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
+            elif re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
+                expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
+                expire += 86400 # 1日後に設定(翌日になったら削除)
             else:
                 itr.command_failed = True
-                await Reply(itr,2, "エラー", "有効期限の書式が間違っています\nYYYY/MM/DD HH:MM または YYYY/MM/DD の書式で指定してください", True)
+                await Reply(itr,2, "エラー", "有効期限の書式が間違っています\nYYYY/MM/DD HH:MM または YYYY/MM/DD または HH:MMの書式で指定してください", True)
+                return
+            
+            if expire < time.time():
+                itr.command_failed = True
+                await Reply(itr,2, "エラー", "有効期限が過去の時間です", True)
+            else:
+                is_found = False
+                for emoji in data["notice_group"]:
+                    for message in data["notice_group"][emoji]["messages"]:
+                        if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == str(itr.message.id):
+                            data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
+                            is_found = True
+                            Save()
+                            msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
+                            await itr.message.edit(view=WaitingExpire(expire_at, msg.jump_url))
+                            await Reply(itr, 0, "成功", f"{expire_at} に有効期限を設定しました", True)
+                            break
+                if not is_found:
+                    itr.command_failed = True
+                    await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください", True)
+                
                 
         except commands.MessageNotFound:
             itr.command_failed = True
@@ -406,10 +415,26 @@ class WaitingExpire(discord.ui.View):
 #region コマンド
 
 @tree.command(name='forecast', description="天気予報を表示します")
-@app_commands.describe(is_tomorrow = "False:今日 True:明日")
-async def forecast(itr: discord.Interaction, is_tomorrow: bool = False):
-    emb = Make_embed_forecast("tomorrow" if is_tomorrow else "today")
-    await itr.response.send_message(embed=emb[0])
+@app_commands.describe(is_tomorrow = "False:今日 True:明日", json_export = "JSON形式で天気予報を返します。")
+async def forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_export: bool = False):
+    if not json_export:
+        emb = Make_embed_forecast("tomorrow" if is_tomorrow else "today")
+        await itr.response.send_message(embed=emb[0])
+    else:
+        weather_data = Get_weather_yahoo()
+        if weather_data == {}:
+            itr.command_failed = True
+            await Reply(itr, 2, "エラー", "天気予報の取得に失敗しました", True)
+            return
+        else:
+            if is_tomorrow:
+                weather_data = weather_data["tomorrow"]
+            else:
+                weather_data = weather_data["today"]
+            json_str = json.dumps(weather_data, indent=4, ensure_ascii=False)
+            forecast_date = time.strftime("%Y/%m/%d", time.localtime(time.time() + 86400)) if is_tomorrow else time.strftime("%Y/%m/%d")
+            await itr.response.send_message(f"{forecast_date} の天気予報をJSON形式で以下に出力しました。 ```json\n{json_str}\n```", ephemeral=False)
+            return
 
 @tree.command(name='help', description="このボットの使い方を表示します")
 async def help(itr: discord.Interaction):
@@ -425,9 +450,43 @@ async def reload(itr: discord.Interaction):
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
 
+@tree.command(name='deb_custom_forecast',description="自作した天気予報を表示します")
+async def deb_custom_forecast(itr: discord.Interaction, json_str: str):
+    if not (json_str.startswith("{") and json_str.endswith("}")):
+        itr.command_failed = True
+        await Reply(itr, 2, "エラー", "JSON形式で天気予報を入力してください", True)
+        return
+    else:
+        try:
+            json_data = json.loads(json_str)
+            error = []
+            for t in json_data:
+                if not ("weather" in json_data[t] and "temp" in json_data[t] and "humidity" in json_data[t] and "rain" in json_data[t] and "wind" in json_data[t]):
+                    itr.command_failed = True
+                    error.append(f"{t} の天気予報に必要な情報が不足しています")
+            if len(error) > 0:
+                await Reply(itr, 2, "エラー", "\n".join(error), True)
+                return
+            else:
+                emb= Make_embed_forecast("today", json_data)
+                if emb is not None:
+                    await itr.response.send_message(embed=emb[0], ephemeral=False)
+                else:
+                    itr.command_failed = True
+                    await Reply(itr, 2, "エラー", "天気予報の取得に失敗しました", True)
+            
+        except json.JSONDecodeError:
+            itr.command_failed = True
+            await Reply(itr, 2, "エラー", "JSON形式での読み取りに失敗しました", True)
+            return
+        except Exception as e:
+            itr.command_failed = True
+            await Reply(itr, 2, "エラー", f"予期しないエラーが発生しました: {str(e)}", True)
+            return
+
 @tree.command(name="auto_forecast", description="天気予報の自動通知を設定します")
-@app_commands.describe(reset = "自動通知をリセットするか", channel = "通知を送信するチャンネル", times = "通知する時間をカンマ区切りで指定 (例: 21600,43200,64800)", mentions = "メンションをカンマ区切りで指定 (例: @user1,@user2,@user3)", greeting = "挨拶をカンマ区切りで指定 (例: おはよう,こんにちは,こんばんは)")
-async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: int = None, times: str = None, mentions: str = None, greeting: str = None):
+@app_commands.describe(reset = "自動通知をリセットするか", channel = "通知を送信するチャンネルのメンション", times = "通知する時間をカンマ区切りで指定 (例: 21600,43200,64800)", mentions = "メンションをカンマ区切りで指定 (例: @user1,@user2,@user3)", greeting = "挨拶をカンマ区切りで指定 (例: おはよう,こんにちは,こんばんは)")
+async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: str = None, times: str = None, mentions: str = None, greeting: str = None):
     global data
     if str(itr.user.id) not in admins:
         itr.command_failed = True
@@ -446,7 +505,8 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
         else:
             if channel is not None:
                 try:
-                    a = bot.get_channel(channel)
+                    ch_id = re.match(r"<#(\d{17,20})>", channel)
+                    a = bot.get_channel(int(ch_id))
                     data["weather"]["msg_channel"] = str(a.id)
                 except:
                     itr.command_failed = True
@@ -645,42 +705,44 @@ async def stats_thread(itr: discord.Interaction, emoji: str):
 @app_commands.describe(msg_link = "**転送された**メッセージのリンク", expire_at = "有効期限 (YYYY/MM/DD HH:MM or YYYY/MM/DD or HH:MM の書式)")
 async def expire(itr: discord.Interaction, msg_link: str, expire_at: str):
     try:
-        if re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at) or re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at) or re.fullmatch(r"\d{2}:\d{2}", expire_at):
-            if re.fullmatch(r"\d{2}:\d{2}", expire_at):
-                expire = time.time() + (int(expire_at.split(":")[0]) * 3600) + (int(expire_at.split(":")[1]) * 60)
-            elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
-                expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
-            else:
-                expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
-                expire += 86400 # 1日後に設定(翌日になったら削除)
-            
-            if expire < time.time():
-                itr.command_failed = True
-                await Reply(itr,2, "エラー", "有効期限が過去の時間です")
-            else:
-                is_found = False
-                msg = discord.Message()
-                for emoji in data["notice_group"]:
-                    for message in data["notice_group"][emoji]["messages"]:
-                        if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == msg_link.split("/")[-1]:
-                            data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
-                            is_found = True
-                            Save()
-                            msg_forward = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"]))
-                            msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
-                            await Reply(itr,0, "成功", f"メッセージの有効期限を{expire_at}に設定しました")
-                            await msg_forward.edit(view=WaitingExpire(expire_at, msg.jump_url))
-                            break
-                if not is_found:
-                    itr.command_failed = True
-                    await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください")
+        if re.fullmatch(r"\d{2}:\d{2}", expire_at[1:]):
+            expire = time.mktime(time.strptime(expire_at[1:], "%H:%M"))
+        elif re.fullmatch(r"\d{4}/\d{2}/\d{2} \d{2}:\d{2}", expire_at):
+            expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d %H:%M"))
+        elif re.fullmatch(r"\d{4}/\d{2}/\d{2}", expire_at):
+            expire = time.mktime(time.strptime(expire_at, "%Y/%m/%d"))
+            expire += 86400 # 1日後に設定(翌日になったら削除)
         else:
             itr.command_failed = True
             await Reply(itr,2, "エラー", "有効期限の書式が間違っています\nYYYY/MM/DD HH:MM または YYYY/MM/DD の書式で指定してください")
-            
+            return
+        
+        if expire < time.time():
+                itr.command_failed = True
+                await Reply(itr,2, "エラー", "有効期限が過去の時間です")
+        else:
+            is_found = False
+            msg = discord.Message()
+            for emoji in data["notice_group"]:
+                for message in data["notice_group"][emoji]["messages"]:
+                    if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == msg_link.split("/")[-1]:
+                        data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
+                        is_found = True
+                        Save()
+                        msg_forward = await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"]))
+                        msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
+                        await Reply(itr,0, "成功", f"メッセージの有効期限を{expire_at}に設定しました")
+                        await msg_forward.edit(view=WaitingExpire(expire_at, msg.jump_url))
+                        break
+            if not is_found:
+                itr.command_failed = True
+                await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください")
+
     except commands.MessageNotFound:
         itr.command_failed = True
         await Reply(itr,2, "エラー", "メッセージの取得に失敗しました")
+            
+            
 
 @tree.command(name='stats', description="指定されたボイスチャットチャンネルの状態を確認できます")
 @app_commands.describe(channel = "ボイスチャンネル")
@@ -770,13 +832,13 @@ async def Auto_Forecast():
     else:
         i = data["weather"]["notify_time"].index(nt)
     
-    emb = Make_embed_forecast(data["weather"]["day"][i])
+    emb, mention = Make_embed_forecast(data["weather"]["day"][i])
     ch = bot.get_channel(int(data["weather"]["msg_channel"]))
     if ch is not None:
-        if emb[1]:
-            msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb[0])
+        if mention:
+            msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
         else:
-            msg = await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb[0])
+            msg = await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
         data["weather"]["last_noticed"] = msg.created_at.timestamp()
 
 token = os.getenv("DISCORD_TOKEN")
