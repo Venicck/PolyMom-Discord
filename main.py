@@ -208,7 +208,16 @@ def Make_embed_forecast(when = "today", customdata = None):
     embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
     embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在に取得")
     for t in data:
-        embed.add_field(name=f"{t} 時", value=f"天気:{"晴れ" if weather_data[when][t]["weather"] == "晴れ" else f"**{weather_data[when][t]["weather"]}**"} \n気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
+        if weather_data[t]["weather"] == "晴れ":
+            tmp = "晴れ :sunny:"
+        elif "曇り" in weather_data[t]["weather"]:
+            tmp = "曇り :cloud:"
+        elif "雨" in weather_data[t]["weather"]:
+            tmp = "雨 :cloud_rain:"
+        elif "雪" in weather_data[t]["weather"]:
+            tmp = "雪 :snowman:"
+
+        embed.add_field(name=f"{t} 時", value=f"天気:{tmp if weather_data[when][t]["weather"] == "晴れ" else f"**{tmp}**"} \n気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
     return (embed, do_mention)
 
 #region イベント
@@ -437,6 +446,12 @@ async def forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_exp
             forecast_date = time.strftime("%Y/%m/%d", time.localtime(time.time() + 86400)) if is_tomorrow else time.strftime("%Y/%m/%d")
             await itr.response.send_message(f"{forecast_date} の天気予報をJSON形式で以下に出力しました。 ```json\n{json_str}\n```", ephemeral=False)
             return
+
+@tree.command(name='roll', description="サイコロを振ります")
+@app_commands.describe(dices = "振るサイコロの数", sides = "サイコロの面の数")
+async def roll(itr: discord.Interaction, dices: int = 1, sides: int = 6):
+    results = [random.randint(sides) for _ in range(dices)]
+    await Reply(itr, 0, "サイコロの結果", f"{dices}個の{sides}面のサイコロを振りました。\n結果: {', '.join(map(str, results))}\n合計: {sum(results)}", False)
 
 @tree.command(name='help', description="このボットの使い方を表示します")
 async def help(itr: discord.Interaction):
