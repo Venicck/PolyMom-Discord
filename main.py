@@ -761,7 +761,7 @@ async def Check_expires():
         Save()
 
 #region 天気予報
-@tasks.loop(times=forecast_times)
+@tasks.loop(time=forecast_times)
 async def Auto_Forecast():
     global data
     nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
