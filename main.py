@@ -427,7 +427,7 @@ async def reload(itr: discord.Interaction):
 
 @tree.command(name="auto_forecast", description="天気予報の自動通知を設定します")
 @app_commands.describe(reset = "自動通知をリセットするか", channel = "通知を送信するチャンネル", times = "通知する時間をカンマ区切りで指定 (例: 21600,43200,64800)", mentions = "メンションをカンマ区切りで指定 (例: @user1,@user2,@user3)", greeting = "挨拶をカンマ区切りで指定 (例: おはよう,こんにちは,こんばんは)")
-async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: discord.Channel = None, times: str = None, mentions: str = None, greeting: str = None):
+async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: int = None, times: str = None, mentions: str = None, greeting: str = None):
     global data
     if str(itr.user.id) not in admins:
         itr.command_failed = True
@@ -446,8 +446,8 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
         else:
             if channel is not None:
                 try:
-                    bot.get_channel(channel.id)
-                    data["weather"]["msg_channel"] = str(channel.id)
+                    a = bot.get_channel(channel)
+                    data["weather"]["msg_channel"] = str(a.id)
                 except:
                     itr.command_failed = True
                     await Reply(itr, 2, "エラー", "指定されたチャンネルが見つかりませんでした", True)
