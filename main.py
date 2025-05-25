@@ -1,4 +1,4 @@
-import discord, os, json, time, asyncio, re, firebase_admin, random, requests
+import discord, os, json, time, asyncio, re, firebase_admin, random, requests, datetime, math
 from bs4 import BeautifulSoup
 from firebase_admin import credentials, firestore
 from discord.ext import tasks
@@ -39,8 +39,7 @@ def Load():
     if doc.exists:
         data = doc.to_dict()
         LogSys(0,"json loaded")
-    else:
-        Initialize()
+    Initialize()
     # if not os.path.exists(path_json):
     #     with open(path_json, "w", encoding="utf-8_sig") as f:
     #         json.dump({}, f, indent=4, ensure_ascii=False)
@@ -66,13 +65,23 @@ def Save():
     #     LogSys(2,"json file save failed")
     #     print(f"{type(e)} : {str(e)}")
 
-def Initialize():
+def Initialize(): # 変数の初期化
     global data
-    dists=["notice_group"]
+    dists={
+        "notice_group": {},
+        "weather": {
+            "mention": ["", "", ""], # [0]: 朝 [1]: 昼 [2]: 夜 通知するメンション
+            "notify_time": [21600, 43200, 64800], # [0]: 朝 [1]: 昼 [2]: 夜 通知する時間
+            "day": ["today", "today", "tomorrow"], # [0]: 朝 [1]: 昼 [2]: 夜 今日の天気予報か明日の天気予報か
+            "greetings": ["おはようございます。", "午後も頑張りましょう。", "こんばんは。"], #挨拶
+            "msg_channel": "", # 通知を送信するチャンネル
+            "last_noticed": 0 # 最後に通知したUnix時間
+        }
+    }
     vars=["target_forum", "log_channel", "cmd_channel"]
-    for dist in dists:
-        if dist not in data:
-            data[dist] = {}
+    for d in dists:
+        if d not in data:
+            data[d] = dists[d]
     for var in vars:
         if var not in data:
             data[var] = ""
@@ -164,6 +173,7 @@ def Make_embed_forecast(when = "today"):
     forecast_date = time.strftime("%Y/%m/%d") if when == "today" else time.strftime("%Y/%m/%d", time.localtime(time.time() + 86400))
     
     """サイドバーのカラーを天気で設定する"""
+    do_mention = False
     sunny = 0
     rainy = 0
     snowy = 0
@@ -184,13 +194,15 @@ def Make_embed_forecast(when = "today"):
         color = discord.Colour.light_gray()
     elif (rainy > snowy):
         color = discord.Colour.blue()
+        do_mention = True
     else:
         color = discord.Colour.from_rgb(255, 255, 255)
+        do_mention = True
     embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
-    embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在")
+    embed.set_footer(text=f"<t:{math.floor(time.time())}> 現在に取得")
     for t in data:
         embed.add_field(name=f"{t} 時", value=f"天気:{"晴れ" if weather_data[when][t]["weather"] == "晴れ" else f"**{weather_data[when][t]["weather"]}**"} \n気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
-    return embed
+    return (embed, do_mention)
 
 #region イベント
 @bot.event
@@ -251,6 +263,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         if (channel is not None) and str(payload.message_id) not in data["notice_group"][em]["messages"]:
             embed = discord.Embed(title="", description = msg.content, color=discord.Color.blue())
             embed.set_author(name=msg.author.display_name, icon_url=msg.author.avatar.url)
+            embed.set_footer(text=f"<t:{msg.created_at.timestamp()}> | #{msg.channel.name}")
             _is_image_set = False
             attachments_str = []
             attachments_dict = {}
@@ -269,7 +282,8 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                 "forwarded_msg_id": str(forward.id),
                 "msg_channel_id": str(payload.channel_id),
                 "user_id": str(payload.user_id),
-                "created_at": str(time.time()),
+                "sent_at": str(msg.created_at.timestamp()),
+                "created_at": str(forward.created_at.timestamp()),
                 "attachments": attachments_dict
             }
             Save()
@@ -385,10 +399,10 @@ class WaitingExpire(discord.ui.View):
 #region コマンド
 
 @tree.command(name='forecast', description="天気予報を表示します")
-@app_commands.describe(when = "False:今日 True:明日")
-async def forecast(itr: discord.Interaction, when: bool = False):
-    emb = Make_embed_forecast("today" if not when else "tomorrow")
-    await itr.response.send_message(embed=emb)
+@app_commands.describe(is_tomorrow = "False:今日 True:明日")
+async def forecast(itr: discord.Interaction, is_tomorrow: bool = False):
+    emb = Make_embed_forecast("tomorrow" if is_tomorrow else "today")
+    await itr.response.send_message(embed=emb[0])
 
 @tree.command(name='help', description="このボットの使い方を表示します")
 async def help(itr: discord.Interaction):
@@ -638,7 +652,16 @@ async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
         await bot.get_channel(int(data["log_channel"])).send(f"{bot.user.mention} のログが当チャンネルに送信されるようになりました。")
         await bot.get_channel(int(data["log_channel"])).send(embed=discord.Embed(title="ボットを使う時のご注意", description="このフォーラムにスレッドをコマンドを使わずにスレッドを作成しても\n絵文字リアクションとの連携機能は使用できないので\n必ずコマンドを使ってスレッドを作成してください。", color=discord.Color.blue()))
 
-#region 期限切れメッセージの動作
+Load()
+
+#region タスク
+
+timezone = datetime.timedelta(hours=9)  # 日本時間 (JST)
+forecast_times = [
+    datetime.time(hour=data["weather"]["notify_time"][0] // 3600, minute = (data["weather"]["notify_time"][0] % 3600) // 60, second= data["weather"]["notify_time"][0] % 60, tzinfo=timezone),
+    datetime.time(hour=data["weather"]["notify_time"][1] // 3600, minute = (data["weather"]["notify_time"][1] % 3600) // 60, second= data["weather"]["notify_time"][1] % 60, tzinfo=timezone),
+    datetime.time(hour=data["weather"]["notify_time"][2] // 3600, minute = (data["weather"]["notify_time"][2] % 3600) // 60, second= data["weather"]["notify_time"][2] % 60, tzinfo=timezone)
+]
 
 @tasks.loop(seconds=5)
 async def Check_expires():
@@ -667,7 +690,21 @@ async def Check_expires():
     if is_changed:
         Save()
 
-Load()
+#region 天気予報
+@tasks.loop(times=forecast_times)
+async def Auto_Forecast():
+    global data
+    nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
+    if nt in data["weather"]["notify_time"]:
+        return
+    else:
+        i = data["weather"]["notify_time"].index(nt)
+    
+    emb = Make_embed_forecast(data["weather"]["day"][i])
+    ch = bot.get_channel(int(data["weather"]["msg_channel"]))
+    if ch is not None:
+        msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb[0])
+        data["weather"]["last_noticed"] = msg.created_at.timestamp()
 
 token = os.getenv("DISCORD_TOKEN")
 bot.run(token)
