@@ -2,3 +2,4 @@
 Ptoken.py
 *.json
 __pycache__/Ptoken.cpython-312.pyc
+/ignore

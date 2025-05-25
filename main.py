@@ -194,16 +194,17 @@ def Make_embed_forecast(when = "today", customdata = None):
             rainy += 1
         elif "雪" in data[t]["weather"]:
             snowy += 1
-    if (rainy == 0 and snowy == 0 and cloudy == 0):
-        color = discord.Colour.orange()
-    elif (rainy == 0 and snowy == 0 and cloudy > 0):
-        color = discord.Colour.light_gray()
-    elif (rainy > snowy):
-        color = discord.Colour.blue()
-        do_mention = True
+    if (rainy == 0 and snowy == 0):
+        if (sunny > cloudy):
+            color = discord.Colour.orange()
+        else:
+            color = discord.Colour.light_gray()
     else:
-        color = discord.Colour.from_rgb(255, 255, 255)
         do_mention = True
+        if (snowy > 0):
+            color = discord.Colour.from_rgb(255, 255, 255)
+        else:
+            color = discord.Colour.blue()
     embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
     embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在に取得")
     for t in data:
@@ -252,7 +253,7 @@ async def on_message(msg : discord.Message):
             file.write(json.dumps(data, indent=4, ensure_ascii=False))
             file.close()
             await msg.channel.send(f"jsonデータをエクスポートしました。", file=discord.File(fp='data_temp.json', filename=f"{time.strftime('%Y%m%d_%H%M%S')}-Polymom-Data.json"))
-            os.remote('data_temp.json')
+            os.remove('data_temp.json')
     if msglogmode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
 
@@ -747,10 +748,11 @@ Load()
 #region タスク
 
 temp = [DaytimeToList(data["weather"]["notify_time"][0]), DaytimeToList(data["weather"]["notify_time"][1]), DaytimeToList(data["weather"]["notify_time"][2])]
+timezone = datetime.timezone(datetime.timedelta(hours=9))  # 日本時間 (UTC+9)
 forecast_times = [
-    datetime.time(hour=temp[0][0], minute=temp[0][1], second=temp[0][2]),
-    datetime.time(hour=temp[1][0], minute=temp[1][1], second=temp[1][2]),
-    datetime.time(hour=temp[2][0], minute=temp[2][1], second=temp[2][2])
+    datetime.time(hour=temp[0][0], minute=temp[0][1], second=temp[0][2], tzinfo=timezone),
+    datetime.time(hour=temp[1][0], minute=temp[1][1], second=temp[1][2], tzinfo=timezone),
+    datetime.time(hour=temp[2][0], minute=temp[2][1], second=temp[2][2], tzinfo=timezone)
 ]
 
 @tasks.loop(seconds=5)
