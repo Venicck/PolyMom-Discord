@@ -208,16 +208,16 @@ def Make_embed_forecast(when = "today", customdata = None):
     embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
     embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在に取得")
     for t in data:
-        if weather_data[t]["weather"] == "晴れ":
+        if data[t]["weather"] == "晴れ":
             tmp = "晴れ :sunny:"
-        elif "曇り" in weather_data[t]["weather"]:
+        elif "曇り" in data[t]["weather"]:
             tmp = "曇り :cloud:"
-        elif "雨" in weather_data[t]["weather"]:
+        elif "雨" in data[t]["weather"]:
             tmp = "雨 :cloud_rain:"
-        elif "雪" in weather_data[t]["weather"]:
+        elif "雪" in data[t]["weather"]:
             tmp = "雪 :snowman:"
 
-        embed.add_field(name=f"{t} 時", value=f"天気:{tmp if weather_data[when][t]["weather"] == "晴れ" else f"**{tmp}**"} \n気温: {weather_data[when][t]['temp']}℃\n湿度: {weather_data[when][t]['humidity']}%\n降水量: {weather_data[when][t]['rain']}\n風速: {weather_data[when][t]['wind']} [m/s]", inline=True)
+        embed.add_field(name=f"{t} 時", value=f"天気:{tmp if data[when][t]["weather"] == "晴れ" else f"**{tmp}**"} \n気温: {data[t]['temp']}℃\n湿度: {data[t]['humidity']}%\n降水量: {data[t]['rain']}\n風速: {data[t]['wind']} [m/s]", inline=True)
     return (embed, do_mention)
 
 #region イベント
