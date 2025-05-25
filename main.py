@@ -418,6 +418,68 @@ async def reload(itr: discord.Interaction):
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
 
+@tree.command(name="auto_forecast", description="天気予報の自動通知を設定します")
+@app_commands.describe(reset = "自動通知をリセットするか", channel = "通知を送信するチャンネル", times = "通知する時間をカンマ区切りで指定 (例: 21600,43200,64800)", mentions = "メンションをカンマ区切りで指定 (例: @user1,@user2,@user3)", greeting = "挨拶をカンマ区切りで指定 (例: おはよう,こんにちは,こんばんは)")
+async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: discord.Channel = None, times: str = None, mentions: str = None, greeting: str = None):
+    global data
+    if str(itr.user.id) not in admins:
+        itr.command_failed = True
+        await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
+        return
+    else:
+        if reset:
+            data["weather"]["mention"] = ["", "", ""]
+            data["weather"]["notify_time"] = [21600, 43200, 64800]
+            data["weather"]["day"] = ["today", "today", "tomorrow"]
+            data["weather"]["greetings"] = ["おはようございます。", "午後も頑張りましょう。", "こんばんは。"]
+            data["weather"]["msg_channel"] = ""
+            data["weather"]["last_noticed"] = 0
+            Save()
+            await Reply(itr, 0, "完了", "天気予報の自動通知をリセットしました", True)
+        else:
+            if channel is not None:
+                try:
+                    bot.get_channel(channel.id)
+                    data["weather"]["msg_channel"] = str(channel.id)
+                except:
+                    itr.command_failed = True
+                    await Reply(itr, 2, "エラー", "指定されたチャンネルが見つかりませんでした", True)
+                    return
+            if times is not None:
+                ls = times.split(",")
+                if len(ls) != 3:
+                    itr.command_failed = True
+                    await Reply(itr, 2, "エラー", "時間の指定が不正です。3つの時間をカンマ区切りで指定してください。 ex) 6:00 → 21600", True)
+                    return
+                else:
+                    try:
+                        timelists = [int(ls[0]), int(ls[1]), int(ls[2])]
+                        if not (timelists[0] < timelists[1]) and (timelists[1] < timelists[2]):
+                            itr.command_failed = True
+                            await Reply(itr, 2, "エラー", "時間の指定が不正です。昇順で指定してください。 ex) 6:00 → 21600", True)
+                            return
+                        data["weather"]["notify_time"] = timelists
+                    except:
+                        itr.command_failed = True
+                        await Reply(itr, 2, "エラー", "時間の指定が不正です。整数で指定してください。 ex) 6:00 → 21600", True)
+                        return
+            if mentions is not None:
+                ls = mentions.split(",")
+                if len(ls) != 3:
+                    itr.command_failed = True
+                    await Reply(itr, 2, "エラー", "メンションの指定が不正です。3つのメンションをカンマ区切りで指定してください。 ex) @user1,@user2,@user3", True)
+                    return
+                else:
+                    data["weather"]["mention"] = [ls[0], ls[1], ls[2]]
+            if greeting is not None:
+                ls = greeting.split(",")
+                if len(ls) != 3:
+                    itr.command_failed = True
+                    await Reply(itr, 2, "エラー", "挨拶の指定が不正です。3つの挨拶をカンマ区切りで指定してください。 ex) おはよう,こんにちは,こんばんは", True)
+                    return
+                else:
+                    data["weather"]["greetings"] = [ls[0], ls[1], ls[2]]
+            Save()
 
 
 @tree.command(name='add_thread', description="絵文字に対応するスレッドを作成します")
