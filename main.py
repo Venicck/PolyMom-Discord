@@ -217,7 +217,7 @@ def Make_embed_forecast(when = "today", customdata = None):
         elif "雪" in data[t]["weather"]:
             tmp = "雪 :snowman:"
 
-        embed.add_field(name=f"{t} 時", value=f"天気:{tmp if data[when][t]["weather"] == "晴れ" else f"**{tmp}**"} \n気温: {data[t]['temp']}℃\n湿度: {data[t]['humidity']}%\n降水量: {data[t]['rain']}\n風速: {data[t]['wind']} [m/s]", inline=True)
+        embed.add_field(name=f"{t} 時", value=f"天気:{tmp if data[t]["weather"] == "晴れ" else f"**{tmp}**"} \n気温: {data[t]['temp']}℃\n湿度: {data[t]['humidity']}%\n降水量: {data[t]['rain']}\n風速: {data[t]['wind']} [m/s]", inline=True)
     return (embed, do_mention)
 
 #region イベント
