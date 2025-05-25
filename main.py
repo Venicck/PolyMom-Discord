@@ -126,6 +126,12 @@ def LogSys(type:int, string: str):
     colors = ["Success", "Info", "Error", "Other"]
     print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {colors[type]} | {string} ")
 
+def DaytimeToList(time : int):
+    hours = time // 3600
+    minutes = (time % 3600) // 60
+    seconds = time % 60
+    return [hours, minutes, seconds]
+
 def Get_weather_yahoo():
     global yahoo_url
     weather_data = {}
@@ -215,6 +221,7 @@ async def on_ready():
     bot.add_view(ViewForForward())
     bot.add_view(WaitingExpire())
     bot.add_view(ExpireModal())
+    Auto_Forecast.start()
     Check_expires.start()
 
 
@@ -480,6 +487,7 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
                 else:
                     data["weather"]["greetings"] = [ls[0], ls[1], ls[2]]
             Save()
+            await Reply(itr, 0, "完了", "変更を適用しました。\n通知時間の変更はBotを再起動すると適用されます。", True)
 
 
 @tree.command(name='add_thread', description="絵文字に対応するスレッドを作成します")
@@ -718,11 +726,11 @@ Load()
 
 #region タスク
 
-timezone = datetime.timedelta(hours=9)  # 日本時間 (JST)
+temp = [DaytimeToList(data["weather"]["notify_time"][0]), DaytimeToList(data["weather"]["notify_time"][1]), DaytimeToList(data["weather"]["notify_time"][2])]
 forecast_times = [
-    datetime.time(hour=data["weather"]["notify_time"][0] // 3600, minute = (data["weather"]["notify_time"][0] % 3600) // 60, second= data["weather"]["notify_time"][0] % 60, tzinfo=timezone),
-    datetime.time(hour=data["weather"]["notify_time"][1] // 3600, minute = (data["weather"]["notify_time"][1] % 3600) // 60, second= data["weather"]["notify_time"][1] % 60, tzinfo=timezone),
-    datetime.time(hour=data["weather"]["notify_time"][2] // 3600, minute = (data["weather"]["notify_time"][2] % 3600) // 60, second= data["weather"]["notify_time"][2] % 60, tzinfo=timezone)
+    datetime.time(hour=temp[0][0], minute=temp[0][1], second=temp[0][2]),
+    datetime.time(hour=temp[1][0], minute=temp[1][1], second=temp[1][2]),
+    datetime.time(hour=temp[2][0], minute=temp[2][1], second=temp[2][2])
 ]
 
 @tasks.loop(seconds=5)
