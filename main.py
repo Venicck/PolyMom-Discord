@@ -703,7 +703,10 @@ async def Auto_Forecast():
     emb = Make_embed_forecast(data["weather"]["day"][i])
     ch = bot.get_channel(int(data["weather"]["msg_channel"]))
     if ch is not None:
-        msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb[0])
+        if emb[1]:
+            msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb[0])
+        else:
+            msg = await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb[0])
         data["weather"]["last_noticed"] = msg.created_at.timestamp()
 
 token = os.getenv("DISCORD_TOKEN")
