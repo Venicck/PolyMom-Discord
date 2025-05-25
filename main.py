@@ -228,7 +228,7 @@ async def on_ready():
 @bot.event
 async def on_message(msg : discord.Message):
     global data, msglogmode
-    if len(msg.poll) > 0:
+    if msg.poll is not None: # 投票があるメッセージはスレッドを作成
         for pl in msg.poll:
             await msg.create_thread(name=pl.question, reason="投票での議論のためのスレッド作成")
     for mention in msg.mentions:
@@ -451,24 +451,26 @@ async def reload(itr: discord.Interaction):
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
 
 @tree.command(name='deb_custom_forecast',description="自作した天気予報を表示します")
-async def deb_custom_forecast(itr: discord.Interaction, json_str: str):
+async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bool = True):
     if not (json_str.startswith("{") and json_str.endswith("}")):
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "JSON形式で天気予報を入力してください", True)
         return
     else:
         try:
-            json_data = json.loads(json_str)
+            json_data = {}
+            json_data["today" if today else "tomorrow"] = json.loads(json_str)
             error = []
-            for t in json_data:
-                if not ("weather" in json_data[t] and "temp" in json_data[t] and "humidity" in json_data[t] and "rain" in json_data[t] and "wind" in json_data[t]):
+            _t = "today" if today else "tomorrow"
+            for t in json_data[_t]:
+                if not ("weather" in json_data[_t][t] and "temp" in json_data[_t][t] and "humidity" in json_data[_t][t] and "rain" in json_data[_t][t] and "wind" in json_data[_t][t]):
                     itr.command_failed = True
                     error.append(f"{t} の天気予報に必要な情報が不足しています")
             if len(error) > 0:
                 await Reply(itr, 2, "エラー", "\n".join(error), True)
                 return
             else:
-                emb= Make_embed_forecast("today", json_data)
+                emb= Make_embed_forecast("today" if today else "tomorrow", json_data)
                 if emb is not None:
                     await itr.response.send_message(embed=emb[0], ephemeral=False)
                 else:
