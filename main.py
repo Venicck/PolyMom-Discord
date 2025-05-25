@@ -779,19 +779,16 @@ async def Check_expires():
 async def Auto_Forecast():
     global data
     nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
-    if nt in data["weather"]["notify_time"]:
-        return
-    else:
-        i = data["weather"]["notify_time"].index(nt)
-    
-    emb, mention = Make_embed_forecast(data["weather"]["day"][i])
-    ch = bot.get_channel(int(data["weather"]["msg_channel"]))
-    if ch is not None:
-        if mention:
-            msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
-        else:
-            msg = await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
-        data["weather"]["last_noticed"] = msg.created_at.timestamp()
+    for i in range(0, len(data["weather"]["notify_time"])):
+        if nt == data["weather"]["notify_time"][i]:
+            emb, mention = Make_embed_forecast(data["weather"]["day"][i])
+            ch = bot.get_channel(int(data["weather"]["msg_channel"]))
+            if ch is not None:
+                if mention:
+                    msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
+                else:
+                    msg = await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
+                data["weather"]["last_noticed"] = msg.created_at.timestamp()
 
 token = os.getenv("DISCORD_TOKEN")
 bot.run(token)
