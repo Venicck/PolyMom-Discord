@@ -318,7 +318,13 @@ async def on_command_error(itr : discord.Interaction, error):
     elif isinstance(error, commands.CommandOnCooldown):
         await itr.response.send_message(f"このコマンドは{int(error.retry_after)}秒後に再実行できます")
     else:
-        await bot.get_user(302957994675535872).send(f"{itr.user.mention}がコマンドを実行した際にエラーが発生しました\n エラー内容:```{traceback.format_exc()}```\n 実行されたコマンド: `{itr.command.name}`\n 引数: {itr.command.parameters}")
+        tb = traceback.format_exc()
+        args = []
+        for opt in itr.data.get('options', []):
+            args.append(f"`{opt['name']}` : `{opt['value']}`")
+        if len(args) == 0:
+            args.append("なし")
+        await bot.get_user(302957994675535872).send(f"{itr.user.mention}がコマンドを実行した際にエラーが発生しました\n エラー内容:```{tb}```\n 実行されたコマンド: `{itr.command.name}`\n 引数: {"\n".join(args)}")
 
 @bot.event
 async def on_error(e):
