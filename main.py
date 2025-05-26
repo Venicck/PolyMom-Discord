@@ -458,10 +458,10 @@ async def forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_exp
 
 @tree.command(name='roll', description="サイコロを振ります")
 @app_commands.describe(dices = "振るサイコロの数", sides = "サイコロの面の数")
-async def roll(itr: discord.Interaction, dices: str = "1", sides: str = "6"):
+async def roll(itr: discord.Interaction, dice: str = "1", side: str = "6"):
     try:
-        dices = int(dices)
-        sides = int(sides)
+        dices = int(dice)
+        sides = int(side)
         if dices < 1 or sides < 1:
             itr.command_failed = True
             await Reply(itr, 2, "エラー", "サイコロの数と面の数は1以上でなければなりません", True)
