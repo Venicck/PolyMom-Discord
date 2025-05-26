@@ -233,7 +233,7 @@ async def on_ready():
     bot.add_view(ViewForForward())
     bot.add_view(WaitingExpire())
     bot.add_view(ExpireModal())
-    if isinstance(str, data["weather"]["last_noticed"]):
+    if isinstance(data["weather"]["last_noticed"], str):
         data["weather"]["last_noticed"] = 0
     Auto_Forecast.start()
     Check_expires.start()
