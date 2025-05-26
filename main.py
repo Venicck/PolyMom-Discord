@@ -224,6 +224,7 @@ def Make_embed_forecast(when = "today", customdata = None):
 #region イベント
 @bot.event
 async def on_ready():
+    global data
     print(f"Bot logged in as {bot.user}")
     activity = "元気に動いてるわよ"
     await bot.change_presence(activity=discord.CustomActivity(name=activity))
@@ -232,6 +233,8 @@ async def on_ready():
     bot.add_view(ViewForForward())
     bot.add_view(WaitingExpire())
     bot.add_view(ExpireModal())
+    if isinstance(str, data["weather"]["last_noticed"]):
+        data["weather"]["last_noticed"] = 0
     Auto_Forecast.start()
     Check_expires.start()
 
@@ -835,15 +838,18 @@ async def Auto_Forecast():
     global data
     nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
     for i in range(0, len(data["weather"]["notify_time"])):
-        if nt == data["weather"]["notify_time"][i]:
+        if (nt >= 0 and nt < 3) and data["weather"]["last_noticed"] != 0:
+            data["weather"]["last_noticed"] = 0 #リセット
+        elif nt >= data["weather"]["notify_time"][i]:
             emb, mention = Make_embed_forecast(data["weather"]["day"][i])
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
             if ch is not None:
+                data["weather"]["last_noticed"] = nt
                 if mention:
-                    msg = await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
+                    await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
                 else:
-                    msg = await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
-                data["weather"]["last_noticed"] = msg.created_at.timestamp()
+                    await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
+        Save()
 
 tree.on_error = on_command_error
 token = os.getenv("DISCORD_TOKEN")
