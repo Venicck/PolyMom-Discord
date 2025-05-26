@@ -1,4 +1,4 @@
-import discord, os, json, time, asyncio, re, firebase_admin, random, requests, datetime, math
+import discord, os, json, time, asyncio, re, firebase_admin, random, requests, datetime, traceback
 from bs4 import BeautifulSoup
 from firebase_admin import credentials, firestore
 from discord.ext import tasks
@@ -239,8 +239,7 @@ async def on_ready():
 async def on_message(msg : discord.Message):
     global data, msglogmode
     if msg.poll is not None: # 投票があるメッセージはスレッドを作成
-        for pl in msg.poll:
-            await msg.create_thread(name=pl.question, reason="投票での議論のためのスレッド作成")
+        await msg.create_thread(name=msg.poll.question, reason="投票での議論のためのスレッド作成")
     for mention in msg.mentions:
         if mention.id == bot.user.id:
             await msg.add_reaction("👀")
@@ -320,6 +319,10 @@ async def on_command_error(ctx, error):
         await ctx.send(f"このコマンドは{int(error.retry_after)}秒後に再実行できます")
     else:
         await bot.get_user(302957994675535872).send(f"エラーが発生しました: \n```{str(error)}```")
+
+@bot.event
+async def on_error(e):
+    await bot.get_user(302957994675535872).send(f"エラーが発生しました: \n```{traceback.format_exc()}```")
 
 @bot.event
 async def on_guild_join(guild):
@@ -776,7 +779,7 @@ async def stats(itr: discord.Interaction, channel: discord.VoiceChannel):
             members_deafen += 1
         if user.voice.self_mute and user.voice.self_deaf:
             members_all_muted += 1
-    await Reply(itr, 1, f"{channel.mention} の状態", f"通話中の人数:{members_with_bot}\n通話中の人数(Botを除く):{members_without_bot}\nBotの数:{members_bot}\nミュート中の人数:{members_muted}\nスピーカーミュート中の人数:{members_deafen}\n全ミュートの人数:{members_all_muted}")
+    await Reply(itr, 1, f"{channel.mention} の状態", f"通話中の人数: {members_with_bot}\n通話中の人数(Botを除く): {members_without_bot}\nBotの数: {members_bot}\nミュート中の人数: {members_muted}\nスピーカーミュート中の人数: {members_deafen}\n全ミュートの人数: {members_all_muted}")
     
 @tree.command(name='set_forum', description="このボットがメインで動くフォーラムを指定します")
 @app_commands.describe(forum = "フォーラムチャンネル")
