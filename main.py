@@ -518,7 +518,7 @@ async def delete(itr:discord.Interaction, msgs: str):
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
         return
     else:
-        msgfind : list[str] = re.findall(r'\d{19}/\d{19}', msgs)
+        msgfind = re.findall(r'\d{19}/\d{19}', msgs)
         if len(msgfind) <= 0:
             itr.command_failed = True
             await Reply(itr, 2, "エラー", "入力された値が適切ではありません。", True)
