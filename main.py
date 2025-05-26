@@ -503,6 +503,42 @@ async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bo
             await Reply(itr, 2, "エラー", f"予期しないエラーが発生しました: {str(e)}", True)
             return
 
+@tree.command(name="delete", description="メッセージを削除します")
+@app_commands.describe(msgs = "メッセージリンクのリスト...半角空白で区切って複数のメッセージを選択します")
+async def delete(itr:discord.Interaction, msgs: str):
+    global data
+    if str(itr.user.id) not in admins:
+        itr.command_failed = True
+        await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
+        return
+    else:
+        msgfind : list[str] = re.findall(r'\d{19}/\d{19}', msgs)
+        if len(msgfind) <= 0:
+            itr.command_failed = True
+            await Reply(itr, 2, "エラー", "入力された値が適切ではありません。", True)
+        else:
+            results = []
+            is_error = False
+            for temp in msgfind:
+                try:
+                    message = bot.get_channel(int(temp.split['/'][0])).fetch_message(int(temp.split['/'][1]))
+                    if message is not None:
+                        await message.delete()
+                        results.append(f"{temp} 正常に削除されました")
+                    else:
+                        results.append(f"{temp} メッセージが見つかりませんでした")
+                        is_error = True
+                except ValueError:
+                    results.append(f"{temp} /で区切られた値が整数である必要があります")
+                    is_error = True
+                except Exception as e:
+                    results.append(f"{temp} 例外が発生しました:`{e}`")
+                    is_error = True
+            if is_error:
+                await Reply(itr, 2, "コマンドの実行結果", f"チャンネル/メッセージ                  出力\n{"\n".join(results)}", True)
+            else:
+                await Reply(itr, 0, "コマンドの実行結果", f"チャンネル/メッセージ                  出力\n{"\n".join(results)}", True)
+
 @tree.command(name="auto_forecast", description="天気予報の自動通知を設定します")
 @app_commands.describe(reset = "自動通知をリセットするか", channel = "通知を送信するチャンネルのメンション", times = "通知する時間をカンマ区切りで指定 (例: 21600,43200,64800)", mentions = "メンションをカンマ区切りで指定 (例: @user1,@user2,@user3)", greeting = "挨拶をカンマ区切りで指定 (例: おはよう,こんにちは,こんばんは)")
 async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: str = None, times: str = None, mentions: str = None, greeting: str = None):
