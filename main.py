@@ -13,6 +13,7 @@ firebase_admin.initialize_app(cred)
 db = firestore.client()
 bot = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(bot)
+
 yahoo_url = "https://weather.yahoo.co.jp/weather/13/4410/13208.html"
 path_json = "./data.json"
 admins = ["302957994675535872", "711540575043715172", "747726536844771350"]
@@ -309,16 +310,15 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             }
             Save()
 
-@bot.event
-async def on_command_error(ctx, error):
+async def on_command_error(itr : discord.Interaction, error):
     if isinstance(error, commands.CommandNotFound):
         return
     elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("このコマンドは管理者のみ使用できます")
+        await itr.response.send_message("このコマンドは管理者のみ使用できます")
     elif isinstance(error, commands.CommandOnCooldown):
-        await ctx.send(f"このコマンドは{int(error.retry_after)}秒後に再実行できます")
+        await itr.response.send_message(f"このコマンドは{int(error.retry_after)}秒後に再実行できます")
     else:
-        await bot.get_user(302957994675535872).send(f"エラーが発生しました: \n```{str(error)}```")
+        await bot.get_user(302957994675535872).send(f"{itr.user.mention}がコマンドを実行した際にエラーが発生しました\n エラー内容:```{traceback.format_exc()}```\n 実行されたコマンド: `{itr.command.name}`\n 引数: {itr.command.parameters}")
 
 @bot.event
 async def on_error(e):
@@ -452,8 +452,12 @@ async def forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_exp
 
 @tree.command(name='roll', description="サイコロを振ります")
 @app_commands.describe(dices = "振るサイコロの数", sides = "サイコロの面の数")
-async def roll(itr: discord.Interaction, dices: int = 1, sides: int = 6):
-    if dices < 1 or sides < 1:
+async def roll(itr: discord.Interaction, dices: str = "1", sides: str = "6"):
+    if not dices.isdigit() or not sides.isdigit():
+        itr.command_failed = True
+        await Reply(itr, 2, "エラー", "サイコロの数と面の数は整数でなければなりません", True)
+        return
+    elif dices < 1 or sides < 1:
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "サイコロの数と面の数は1以上でなければなりません", True)
         return
@@ -852,5 +856,6 @@ async def Auto_Forecast():
                     msg = await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
                 data["weather"]["last_noticed"] = msg.created_at.timestamp()
 
+tree.on_error = on_command_error
 token = os.getenv("DISCORD_TOKEN")
 bot.run(token)
