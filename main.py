@@ -585,6 +585,9 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
                             itr.command_failed = True
                             await Reply(itr, 2, "エラー", "時間の指定が不正です。昇順で指定してください。 ex) 6:00 → 21600", True)
                             return
+                        elif timelists[0] <= 3 or (timelists[1] <= 3 or timelists[2] <= 3):
+                            itr.command_failed = True
+                            await Reply(itr, 2, "エラー","0時からの3秒間は変数のリセットに使われるため設定できません。", True)
                         data["weather"]["notify_time"] = timelists
                     except:
                         itr.command_failed = True
@@ -840,7 +843,7 @@ async def Auto_Forecast():
     for i in range(0, len(data["weather"]["notify_time"])):
         if (nt >= 0 and nt < 3) and data["weather"]["last_noticed"] != 0:
             data["weather"]["last_noticed"] = 0 #リセット
-        elif nt >= data["weather"]["notify_time"][i]:
+        elif data["weather"]["notify_time"][i] >= data["weather"]["last_noticed"] and nt >= data["weather"]["notify_time"][i]:
             emb, mention = Make_embed_forecast(data["weather"]["day"][i])
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
             if ch is not None:
