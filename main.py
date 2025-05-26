@@ -459,19 +459,22 @@ async def forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_exp
 @tree.command(name='roll', description="サイコロを振ります")
 @app_commands.describe(dices = "振るサイコロの数", sides = "サイコロの面の数")
 async def roll(itr: discord.Interaction, dices: str = "1", sides: str = "6"):
-    if not dices.isdigit() or not sides.isdigit():
+    try:
+        dices = int(dices)
+        sides = int(sides)
+        if dices < 1 or sides < 1:
+            itr.command_failed = True
+            await Reply(itr, 2, "エラー", "サイコロの数と面の数は1以上でなければなりません", True)
+            return
+        else:
+            results = []
+            for a in range(dices):
+                results.append(random.randint(1, sides))
+            await Reply(itr, 0, "サイコロの結果", f"{dices}個の{sides}面のサイコロを振りました。\n結果: {', '.join(results)}\n合計: {sum(results)}", False)
+    except ValueError:
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "サイコロの数と面の数は整数でなければなりません", True)
         return
-    elif dices < 1 or sides < 1:
-        itr.command_failed = True
-        await Reply(itr, 2, "エラー", "サイコロの数と面の数は1以上でなければなりません", True)
-        return
-    else:
-        results = []
-        for a in range(dices):
-            results.append(random.randint(1, sides))
-        await Reply(itr, 0, "サイコロの結果", f"{dices}個の{sides}面のサイコロを振りました。\n結果: {', '.join(results)}\n合計: {sum(results)}", False)
 
 @tree.command(name='help', description="このボットの使い方を表示します")
 async def help(itr: discord.Interaction):
