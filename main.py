@@ -808,6 +808,9 @@ Load()
 
 #region タスク
 
+"""
+定期的に有効期限の切れた転送メッセージを削除する
+"""
 @tasks.loop(seconds=10)
 async def Check_expires():
     global data
@@ -836,6 +839,10 @@ async def Check_expires():
         Save()
 
 #region 天気予報
+"""
+設定された時間に天気予報を自動で通知する
+(1秒ごとに実行されるせいで不安。)
+"""
 @tasks.loop(seconds=1)
 async def Auto_Forecast():
     global data
