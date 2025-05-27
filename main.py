@@ -861,16 +861,17 @@ async def Auto_Forecast():
     for i in range(0, len(data["weather"]["notify_time"])):
         if (nt >= 0 and nt < 3) and data["weather"]["last_noticed"] != 0:
             data["weather"]["last_noticed"] = 0 #リセット
+            Save()
         elif data["weather"]["notify_time"][i] >= data["weather"]["last_noticed"] and nt >= data["weather"]["notify_time"][i]:
             emb, mention = Make_embed_forecast(data["weather"]["day"][i])
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
             if ch is not None:
                 data["weather"]["last_noticed"] = nt
+                Save()
                 if mention:
                     await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
                 else:
                     await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
-        Save()
 
 tree.on_error = on_command_error
 token = os.getenv("DISCORD_TOKEN")
