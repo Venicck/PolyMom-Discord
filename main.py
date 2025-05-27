@@ -258,7 +258,7 @@ async def on_message(msg : discord.Message):
         if mention.id == bot.user.id:
             await msg.add_reaction("👀")
             break
-    if str(msg.author.id) in admins:
+    if str(msg.author.id) in admins: # ここから管理者用のコマンド
         if msg.content.startswith("--") and len(msg.content) > 2:
             cmd = msg.content.split(' ')[0][2:]
             args = msg.content.split(' ')[1:]if len(msg.content.split(' ')) > 0 else []
@@ -536,13 +536,18 @@ async def delete(itr:discord.Interaction, msgs: str):
             is_error = False
             for temp in msgfind:
                 try:
-                    message = await bot.get_channel(int(temp.split('/')[0])).fetch_message(int(temp.split('/')[1]))
-                    if message is not None:
-                        await message.delete()
-                        results.append(f"{temp} 正常に削除されました")
-                    else:
-                        results.append(f"{temp} メッセージが見つかりませんでした")
+                    ch = bot.get_channel(int(temp[:19]))
+                    if ch is None:
+                        results.append(f"{temp} チャンネルが見つかりませんでした")
                         is_error = True
+                    else:
+                        msg = await ch.fetch_message(int(temp[-19:]))
+                        if msg is not None:
+                            await msg.delete()
+                            results.append(f"{temp} 正常に削除されました")
+                        else:
+                            results.append(f"{temp} メッセージが見つかりませんでした")
+                            is_error = True
                 except ValueError:
                     results.append(f"{temp} /で区切られた値が整数である必要があります")
                     is_error = True
