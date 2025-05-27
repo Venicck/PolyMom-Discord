@@ -248,24 +248,27 @@ async def on_message(msg : discord.Message):
         if mention.id == bot.user.id:
             await msg.add_reaction("👀")
             break
-    if (msg.author.id == 302957994675535872):
-        if msg.content == "--stop":
-            await msg.add_reaction("💤")
-            Check_expires.stop()
-            await bot.close()
-            await asyncio.sleep(2)
-        elif msg.content == "--msglog":
-            msglogmode = not msglogmode
-            if msglogmode:
-                await msg.add_reaction("✅")
-            else:
-                await msg.add_reaction("❌")
-        elif msg.content == "--export":
-            file = open('data_temp.json', 'w', encoding='utf-8')
-            file.write(json.dumps(data, indent=4, ensure_ascii=False))
-            file.close()
-            await msg.channel.send(f"jsonデータをエクスポートしました。", file=discord.File(fp='data_temp.json', filename=f"{time.strftime('%Y%m%d_%H%M%S')}-Polymom-Data.json"))
-            os.remove('data_temp.json')
+    if str(msg.author.id) in admins:
+        if msg.content.startswith("--") and len(msg.content) > 2:
+            cmd = msg.content.split(' ')[0][2:]
+            args = msg.content.split(' ')[1:]if len(msg.content.split(' ')) > 0 else []
+            if cmd == "stop":
+                await msg.add_reaction("💤")
+                Check_expires.stop()
+                await bot.close()
+                await asyncio.sleep(2)
+            elif cmd == "msglog":
+                msglogmode = not msglogmode
+                if msglogmode:
+                    await msg.add_reaction("✅")
+                else:
+                    await msg.add_reaction("❌")
+            elif cmd == "export":
+                file = open('data_temp.json', 'w', encoding='utf-8')
+                file.write(json.dumps(data, indent=4, ensure_ascii=False))
+                file.close()
+                await msg.author.send(f"jsonデータをエクスポートしました。", file=discord.File(fp='data_temp.json', filename=f"{time.strftime('%Y%m%d_%H%M%S')}-Polymom-Data.json"))
+                os.remove('data_temp.json')
     if msglogmode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
 
