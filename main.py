@@ -111,11 +111,11 @@ async def Thread_Refresh():
         if channel is None:
             del data["notice_group"][emoji]
             Save()
-            LogCh(data["log_channel"], f"{emoji} のスレッドが見つかりませんでした。\n不具合を防ぐためコマンドから削除するようにしてください。")
+            await LogCh(data["log_channel"], f"{emoji} のスレッドが見つかりませんでした。\n不具合を防ぐためコマンドから削除するようにしてください。")
 
 async def LogCh(channel_id, string: str):
     """指定されたスレッドにメッセージを送信します"""
-    channel = await bot.get_channel(int(channel_id))
+    channel = bot.get_channel(int(channel_id))
     if channel is not None:
         try:
             await channel.send(string)
@@ -133,6 +133,7 @@ def DaytimeToList(time : int):
     seconds = time % 60
     return [hours, minutes, seconds]
 
+#region 天気予報取得
 def Get_weather_yahoo():
     global yahoo_url
     weather_data = {}
@@ -147,8 +148,11 @@ def Get_weather_yahoo():
         humid_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(4)')
         rain_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(5)')
         wind_tb = soup.select('#yjw_pinpoint_today > table > tbody > tr:nth-of-type(6)')
+        comment = soup.select('#ai_overview > div.pptWeather_aiExplanation_expand > p')
+        if len(comment) != 0:
+            weather_data["today"]["comment"] = comment[0].text.replace("\n", "").replace(" ", "")
         for i in range(0, 8):
-            weather_data["today"][f"{i*3} - {(i+1) * 3}"] = {
+            weather_data["today"][f"{i}"] = {
                 "weather": weather_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
                 "temp": temp_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
                 "humidity": humid_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
@@ -170,6 +174,8 @@ def Get_weather_yahoo():
                 "wind": wind_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
             }
         return weather_data
+    
+#region 天気予報用のEmbed作成
 
 def Make_embed_forecast(when = "today", customdata = None):
     global yahoo_url
@@ -187,7 +193,9 @@ def Make_embed_forecast(when = "today", customdata = None):
     cloudy = 0
     data = weather_data[when]
     for t in data:
-        if data[t]["weather"] == "晴れ":
+        if t == "comment":
+            pass
+        elif data[t]["weather"] == "晴れ":
             sunny += 1
         elif "曇り" in data[t]["weather"]:
             cloudy += 1
@@ -209,6 +217,9 @@ def Make_embed_forecast(when = "today", customdata = None):
     embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
     embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在に取得")
     for t in data:
+        if t == "comment": # コメントの場合講評として追加
+            embed.add_field(name="コメント", value=data[t], inline=False)
+            continue
         if data[t]["weather"] == "晴れ":
             tmp = "晴れ :sunny:"
         elif "曇り" in data[t]["weather"]:
@@ -217,8 +228,7 @@ def Make_embed_forecast(when = "today", customdata = None):
             tmp = "雨 :cloud_rain:"
         elif "雪" in data[t]["weather"]:
             tmp = "雪 :snowman:"
-
-        embed.add_field(name=f"{t} 時", value=f"天気:{tmp if data[t]["weather"] == "晴れ" else f"**{tmp}**"} \n気温: {data[t]['temp']}℃\n湿度: {data[t]['humidity']}%\n降水量: {data[t]['rain']}\n風速: {data[t]['wind']} [m/s]", inline=True)
+        embed.add_field(name=f"{t} 時", value=f"天気:{tmp if data[t]["weather"] == "晴れ" else f"**{tmp}**"} \n気温: {data[t]['temp']}℃\n湿度: {data[t]['humidity']}%\n降水量: {data[t]['rain']} [mm]\n風速: {data[t]['wind']} [m/s]", inline=True)
     return (embed, do_mention)
 
 #region イベント
@@ -530,7 +540,7 @@ async def delete(itr:discord.Interaction, msgs: str):
             is_error = False
             for temp in msgfind:
                 try:
-                    message = bot.get_channel(int(temp.split['/'][0])).fetch_message(int(temp.split['/'][1]))
+                    message = await bot.get_channel(int(temp.split['/'][0])).fetch_message(int(temp.split['/'][1]))
                     if message is not None:
                         await message.delete()
                         results.append(f"{temp} 正常に削除されました")
@@ -645,7 +655,7 @@ async def add_thread(itr: discord.Interaction, emoji: str, thread_name: str):
                 }
                 Save()
                 await Reply(itr, 0, "スレッドを作成しました。", f"{thread.thread.mention} に {emoji} のリアクションがつけられたメッセージが自動転送されるようになりました。")
-                await bot.get_channel(int(data["log_channel"])).send(f"{emoji} ➤ {thread.thread.mention} 連携スレッドが作成されました。")
+                bot.get_channel(int(data["log_channel"])).send(f"{emoji} ➤ {thread.thread.mention} 連携スレッドが作成されました。")
 
 @tree.command(name='remove_thread', description="絵文字に対応するスレッドを削除します")
 @app_commands.describe(emoji = "絵文字1文字")
@@ -836,7 +846,7 @@ async def Check_expires():
         for msg in to_delete:
             del data["notice_group"][emoji]["messages"][msg]
         if i > 0:
-            await  bot.get_channel(int(data["log_channel"])).send(f"{emoji} の有効期限の切れた転送メッセージを削除しました")
+            await bot.get_channel(int(data["log_channel"])).send(f"{emoji} の有効期限の切れた転送メッセージを削除しました")
     await Thread_Refresh()
     if is_changed:
         Save()
