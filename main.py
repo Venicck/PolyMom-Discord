@@ -517,10 +517,6 @@ async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bo
             itr.command_failed = True
             await Reply(itr, 2, "エラー", "JSON形式での読み取りに失敗しました", True)
             return
-        except Exception as e:
-            itr.command_failed = True
-            await Reply(itr, 2, "エラー", f"予期しないエラーが発生しました: {str(e)}", True)
-            return
 
 @tree.command(name="delete", description="メッセージを削除します")
 @app_commands.describe(msgs = "メッセージリンクのリスト...半角空白で区切って複数のメッセージを選択します")
@@ -540,7 +536,7 @@ async def delete(itr:discord.Interaction, msgs: str):
             is_error = False
             for temp in msgfind:
                 try:
-                    message = await bot.get_channel(int(temp.split['/'][0])).fetch_message(int(temp.split['/'][1]))
+                    message = await bot.get_channel(int(temp.split('/')[0])).fetch_message(int(temp.split('/')[1]))
                     if message is not None:
                         await message.delete()
                         results.append(f"{temp} 正常に削除されました")
@@ -549,9 +545,6 @@ async def delete(itr:discord.Interaction, msgs: str):
                         is_error = True
                 except ValueError:
                     results.append(f"{temp} /で区切られた値が整数である必要があります")
-                    is_error = True
-                except Exception as e:
-                    results.append(f"{temp} 例外が発生しました:`{e}`")
                     is_error = True
             if is_error:
                 await Reply(itr, 2, "コマンドの実行結果", f"チャンネル/メッセージ                  出力\n{"\n".join(results)}", True)
