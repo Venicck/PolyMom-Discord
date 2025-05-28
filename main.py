@@ -879,6 +879,7 @@ async def Auto_Forecast():
                 else:
                     await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
             data["weather"]["last_noticed"] = False
+            Save()
 
 tree.on_error = on_command_error
 token = os.getenv("DISCORD_TOKEN")
