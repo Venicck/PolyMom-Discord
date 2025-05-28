@@ -166,7 +166,7 @@ def Get_weather_yahoo():
         rain_tb = soup.select('#yjw_pinpoint_tomorrow > table > tbody > tr:nth-of-type(5)')
         wind_tb = soup.select('#yjw_pinpoint_tomorrow > table > tbody > tr:nth-of-type(6)')
         for i in range(0, 8):
-            weather_data["tomorrow"][f"{i*3} - {(i+1) * 3}"] = {
+            weather_data["tomorrow"][f"{i*3}"] = {
                 "weather": weather_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
                 "temp": temp_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
                 "humidity": humid_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
@@ -201,15 +201,18 @@ def Make_embed_forecast(when = "today", customdata = None):
             cloudy += 1
         elif "雨" in data[t]["weather"]:
             rainy += 1
+            if when == "tomorrow" or int(t*3) > time.localtime().tm_hour:
+                do_mention = True
         elif "雪" in data[t]["weather"]:
             snowy += 1
+            if when == "tomorrow" or int(t*3) > time.localtime().tm_hour:
+                do_mention = True
     if (rainy == 0 and snowy == 0):
         if (sunny > cloudy):
             color = discord.Colour.orange()
         else:
             color = discord.Colour.light_gray()
     else:
-        do_mention = True
         if (snowy > 0):
             color = discord.Colour.from_rgb(255, 255, 255)
         else:
@@ -243,8 +246,8 @@ async def on_ready():
     bot.add_view(ViewForForward())
     bot.add_view(WaitingExpire())
     bot.add_view(ExpireModal())
-    if isinstance(data["weather"]["last_noticed"], str):
-        data["weather"]["last_noticed"] = 0
+    if isinstance(data["weather"]["last_noticed"], int):
+        data["weather"]["last_noticed"] = False
     Auto_Forecast.start()
     Check_expires.start()
 
@@ -527,7 +530,7 @@ async def delete(itr:discord.Interaction, msgs: str):
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
         return
     else:
-        msgfind = re.findall(r'\d{19}/\d{19}', msgs)
+        msgfind = re.findall(r'd{19}/\d{19}/\d{19}', msgs)
         if len(msgfind) <= 0:
             itr.command_failed = True
             await Reply(itr, 2, "エラー", "入力された値が適切ではありません。", True)
@@ -536,7 +539,7 @@ async def delete(itr:discord.Interaction, msgs: str):
             is_error = False
             for temp in msgfind:
                 try:
-                    ch = bot.get_channel(int(temp[:19]))
+                    ch = bot.get_channel(int(temp[20:39]))
                     if ch is None:
                         results.append(f"{temp} チャンネルが見つかりませんでした")
                         is_error = True
@@ -596,9 +599,9 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
                             itr.command_failed = True
                             await Reply(itr, 2, "エラー", "時間の指定が不正です。昇順で指定してください。 ex) 6:00 → 21600", True)
                             return
-                        elif timelists[0] <= 3 or (timelists[1] <= 3 or timelists[2] <= 3):
+                        elif timelists[0] <= 60 or (timelists[1] <= 60 or timelists[2] <= 60):
                             itr.command_failed = True
-                            await Reply(itr, 2, "エラー","0時からの3秒間は変数のリセットに使われるため設定できません。", True)
+                            await Reply(itr, 2, "エラー","0時からの1分間は変数のリセットに使われるため設定できません。", True)
                         data["weather"]["notify_time"] = timelists
                     except:
                         itr.command_failed = True
@@ -852,26 +855,30 @@ async def Check_expires():
 #region 天気予報
 """
 設定された時間に天気予報を自動で通知する
-(1秒ごとに実行されるせいで不安。)
+30秒ごとに次の通知時間まで一分を切ったらその時間まで待機してメッセージを送信。
+Last_noticedフラグを使って、同じ時間に複数回通知されないようにする。
+復帰機能は未実装。
 """
-@tasks.loop(seconds=1)
+@tasks.loop(seconds=30)
 async def Auto_Forecast():
     global data
     nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
+    if nt < 60 and data["weather"]["last_noticed"]: # 日付が変わったときの初期化処理
+        data["weather"]["last_noticed"] = False
+        Save()
     for i in range(0, len(data["weather"]["notify_time"])):
-        if (nt >= 0 and nt < 3) and data["weather"]["last_noticed"] != 0:
-            data["weather"]["last_noticed"] = 0 #リセット
+        if (data["weather"]["notify_time"][i] - nt <= 60 and data["weather"]["notify_time"][i] - nt > 0) and not data["weather"]["last_noticed"]:
+            data["weather"]["last_noticed"] = True
             Save()
-        elif data["weather"]["notify_time"][i] >= data["weather"]["last_noticed"] and nt >= data["weather"]["notify_time"][i]:
+            await asyncio.sleep(data["weather"]["notify_time"][i] - nt) #通知時間まで待機
             emb, mention = Make_embed_forecast(data["weather"]["day"][i])
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
             if ch is not None:
-                data["weather"]["last_noticed"] = nt
-                Save()
                 if mention:
                     await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
                 else:
                     await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
+            data["weather"]["last_noticed"] = False
 
 tree.on_error = on_command_error
 token = os.getenv("DISCORD_TOKEN")
