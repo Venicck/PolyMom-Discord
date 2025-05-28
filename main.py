@@ -152,7 +152,7 @@ def Get_weather_yahoo():
         if len(comment) != 0:
             weather_data["today"]["comment"] = comment[0].text.replace("\n", "").replace(" ", "")
         for i in range(0, 8):
-            weather_data["today"][f"{i}"] = {
+            weather_data["today"][f"{i*3}"] = {
                 "weather": weather_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
                 "temp": temp_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
                 "humidity": humid_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
