@@ -316,6 +316,8 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             if len(attachments_str) > 0:
                 if len(image_urls) > 0:
                     embed.set_image(url=image_urls[0]) # 最初の画像をサムネイルとして設定
+                if len(image_urls) > 1:
+                    embed.add_field(name="`他の画像`", value="\n".join(image_urls[1:]), inline=False)
                 embed.add_field(name="`添付ファイル`", value="\n".join(attachments_str), inline=False)
             
             forward = await channel.send(embed=embed, view=ViewForForward(msg.jump_url))
