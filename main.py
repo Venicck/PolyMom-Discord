@@ -68,7 +68,6 @@ def Load():
     #     print(f"{type(e)} : {str(e)}")
 
 def Save():
-    global data
     db.collection("bot").document("data").set(data)
     LogSys(0,"json saved")
     # try:
@@ -80,7 +79,6 @@ def Save():
     #     print(f"{type(e)} : {str(e)}")
 
 def Initialize(): # 変数の初期化
-    global data
     dists={
         "notice_group": {},
         "weather": {
