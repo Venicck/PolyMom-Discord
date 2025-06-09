@@ -1,9 +1,20 @@
-import discord, os, json, time, asyncio, re, firebase_admin, random, requests, datetime, traceback
-from bs4 import BeautifulSoup
-from firebase_admin import credentials, firestore
+import os
+import json
+import time
+import asyncio
+import re
+import datetime
+import traceback
+import random
+
+import requests
+import discord
 from discord.ext import tasks
 from discord import app_commands
 from discord.ext import commands
+from bs4 import BeautifulSoup
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 #region 初期変数
 
