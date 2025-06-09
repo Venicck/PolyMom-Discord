@@ -26,7 +26,7 @@ bot = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(bot)
 
 YAHOO_URL = "https://weather.yahoo.co.jp/weather/13/4410/13208.html"
-ADMIN_USER_IDS = ["302957994675535872", "711540575043715172", "747726536844771350"]
+ADMIN_USER_IDS = {302957994675535872, 711540575043715172, 747726536844771350}
 EMOJI_PATTERN = re.compile(
     "["
     "\U0001F600-\U0001F64F"  # 顔の絵文字
@@ -272,7 +272,7 @@ async def on_message(msg : discord.Message):
         if mention.id == bot.user.id:
             await msg.add_reaction("👀")
             break
-    if str(msg.author.id) in ADMIN_USER_IDS: # ここから管理者用のコマンド
+    if msg.author.id in ADMIN_USER_IDS: # ここから管理者用のコマンド
         if msg.content.startswith("--") and len(msg.content) > 2:
             cmd = msg.content.split(' ')[0][2:]
             args = msg.content.split(' ')[1:]if len(msg.content.split(' ')) > 0 else []
@@ -494,7 +494,7 @@ async def help(itr: discord.Interaction):
 
 @tree.command(name='reload', description="jsonファイルを再読み込みします")
 async def reload(itr: discord.Interaction):
-    if str(itr.user.id) in ADMIN_USER_IDS:
+    if itr.user.id in ADMIN_USER_IDS:
         await Thread_Refresh()
         Load()
         await Reply(itr, 0, "完了", "jsonファイルを再読み込みしました", True)
@@ -538,7 +538,7 @@ async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bo
 @app_commands.describe(msgs = "メッセージリンクのリスト...半角空白で区切って複数のメッセージを選択します")
 async def delete(itr:discord.Interaction, msgs: str):
     global data
-    if str(itr.user.id) not in ADMIN_USER_IDS:
+    if itr.user.id not in ADMIN_USER_IDS:
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
         return
@@ -576,7 +576,7 @@ async def delete(itr:discord.Interaction, msgs: str):
 @app_commands.describe(reset = "自動通知をリセットするか", channel = "通知を送信するチャンネルのメンション", times = "通知する時間をカンマ区切りで指定 (例: 21600,43200,64800)", mentions = "メンションをカンマ区切りで指定 (例: @user1,@user2,@user3)", greeting = "挨拶をカンマ区切りで指定 (例: おはよう,こんにちは,こんばんは)")
 async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: str = None, times: str = None, mentions: str = None, greeting: str = None):
     global data
-    if str(itr.user.id) not in ADMIN_USER_IDS:
+    if itr.user.id not in ADMIN_USER_IDS:
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
         return
@@ -681,7 +681,7 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
     elif not (is_discord_emoji(emoji) or is_unicode_emoji(emoji)):
         itr.command_failed = True
         await Reply(itr,2, "エラー", "絵文字が適正ではありません")
-    elif not ((str(itr.user.id) not in ADMIN_USER_IDS) or str(itr.user.id) == data["notice_group"][emoji]["owner"]):
+    elif not ((itr.user.id not in ADMIN_USER_IDS) or str(itr.user.id) == data["notice_group"][emoji]["owner"]):
         itr.command_failed = True
         await Reply(itr,2, "エラー", "指定されたスレッドの所有者ではありません")
     else:
@@ -817,7 +817,7 @@ async def stats(itr: discord.Interaction, channel: discord.VoiceChannel):
 @tree.command(name='set_forum', description="このボットがメインで動くフォーラムを指定します")
 @app_commands.describe(forum = "フォーラムチャンネル")
 async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
-    if not str(itr.user.id) in ADMIN_USER_IDS:
+    if not itr.user.id in ADMIN_USER_IDS:
         itr.command_failed = True
         await Reply(itr,2, "エラー", "このコマンドは管理者のみ使用できます", False)
     else:
