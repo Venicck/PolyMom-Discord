@@ -1,9 +1,20 @@
-import discord, os, json, time, asyncio, re, firebase_admin, random, requests, datetime, traceback
-from bs4 import BeautifulSoup
-from firebase_admin import credentials, firestore
+import os
+import json
+import time
+import asyncio
+import re
+import datetime
+import traceback
+import random
+
+import requests
+import discord
 from discord.ext import tasks
 from discord import app_commands
 from discord.ext import commands
+from bs4 import BeautifulSoup
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 #region 初期変数
 
@@ -14,11 +25,9 @@ db = firestore.client()
 bot = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(bot)
 
-yahoo_url = "https://weather.yahoo.co.jp/weather/13/4410/13208.html"
-path_json = "./data.json"
-admins = ["302957994675535872", "711540575043715172", "747726536844771350"]
-data={}
-emoji_pattern = re.compile(
+YAHOO_URL = "https://weather.yahoo.co.jp/weather/13/4410/13208.html"
+ADMIN_USER_IDS = {302957994675535872, 711540575043715172, 747726536844771350}
+EMOJI_PATTERN = re.compile(
     "["
     "\U0001F600-\U0001F64F"  # 顔の絵文字
     "\U0001F300-\U0001F5FF"  # 記号・天気・物
@@ -30,7 +39,11 @@ emoji_pattern = re.compile(
     "]+"
 )
 time.timezone = 32400 # JST
-msglogmode = False
+data={}
+msg_log_mode = False
+
+# 現在使用されていない定数
+# path_json = "./data.json"
 
 #region ファイル操作
 
@@ -55,7 +68,6 @@ def Load():
     #     print(f"{type(e)} : {str(e)}")
 
 def Save():
-    global data
     db.collection("bot").document("data").set(data)
     LogSys(0,"json saved")
     # try:
@@ -67,7 +79,6 @@ def Save():
     #     print(f"{type(e)} : {str(e)}")
 
 def Initialize(): # 変数の初期化
-    global data
     dists={
         "notice_group": {},
         "weather": {
@@ -94,7 +105,7 @@ def is_discord_emoji(s: str) -> bool:
     return bool(re.fullmatch(r"<a?:\w+:\d+>", s))
 
 def is_unicode_emoji(s: str) -> bool:
-    return bool(emoji_pattern.fullmatch(s))
+    return bool(EMOJI_PATTERN.fullmatch(s))
 
 #region 便利関数
 
@@ -135,9 +146,8 @@ def DaytimeToList(time : int):
 
 #region 天気予報取得
 def Get_weather_yahoo():
-    global yahoo_url
     weather_data = {}
-    req = requests.get(yahoo_url)
+    req = requests.get(YAHOO_URL)
     if req.status_code != 200:
         return {}
     else:
@@ -174,11 +184,10 @@ def Get_weather_yahoo():
                 "wind": wind_tb[0].find_all('td')[i+1].text.replace("\n", "").replace(" ", ""),
             }
         return weather_data
-    
+
 #region 天気予報用のEmbed作成
 
 def Make_embed_forecast(when = "today", customdata = None):
-    global yahoo_url
     weather_data = Get_weather_yahoo() if customdata is None else customdata
     if not weather_data:
         return None
@@ -217,7 +226,7 @@ def Make_embed_forecast(when = "today", customdata = None):
             color = discord.Colour.from_rgb(255, 255, 255)
         else:
             color = discord.Colour.blue()
-    embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{yahoo_url}>)からお知らせします。")
+    embed = discord.Embed(title=f"{forecast_date} の天気予報 (東京都調布市)", color=color, description=f"3時間ごとの天気予報を[Yahoo!天気](<{YAHOO_URL}>)からお知らせします。")
     embed.set_footer(text=f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在に取得")
     for t in data:
         if t == "comment": # コメントの場合講評として追加
@@ -254,14 +263,14 @@ async def on_ready():
 
 @bot.event
 async def on_message(msg : discord.Message):
-    global data, msglogmode
+    global data, msg_log_mode
     if msg.poll is not None: # 投票があるメッセージはスレッドを作成
         await msg.create_thread(name=msg.poll.question, reason="投票での議論のためのスレッド作成")
     for mention in msg.mentions:
         if mention.id == bot.user.id:
             await msg.add_reaction("👀")
             break
-    if str(msg.author.id) in admins: # ここから管理者用のコマンド
+    if msg.author.id in ADMIN_USER_IDS: # ここから管理者用のコマンド
         if msg.content.startswith("--") and len(msg.content) > 2:
             cmd = msg.content.split(' ')[0][2:]
             args = msg.content.split(' ')[1:]if len(msg.content.split(' ')) > 0 else []
@@ -271,8 +280,8 @@ async def on_message(msg : discord.Message):
                 await bot.close()
                 await asyncio.sleep(2)
             elif cmd == "msglog":
-                msglogmode = not msglogmode
-                if msglogmode:
+                msg_log_mode = not msg_log_mode
+                if msg_log_mode:
                     await msg.add_reaction("✅")
                 else:
                     await msg.add_reaction("❌")
@@ -282,12 +291,12 @@ async def on_message(msg : discord.Message):
                 file.close()
                 await msg.author.send(f"jsonデータをエクスポートしました。", file=discord.File(fp='data_temp.json', filename=f"{time.strftime('%Y%m%d_%H%M%S')}-Polymom-Data.json"))
                 os.remove('data_temp.json')
-    if msglogmode:
+    if msg_log_mode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
 
 @bot.event
 async def on_command(ctx):
-    if msglogmode:
+    if msg_log_mode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {ctx.author.display_name}({ctx.author.id}) : command | {ctx.command} {str(ctx.kwargs)}")
 
 @bot.event
@@ -386,7 +395,7 @@ async def on_message_delete(msg):
                 await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][str(msg.id)]["forwarded_msg_id"])).delete()
                 del data["notice_group"][emoji]["messages"][str(msg.id)]
                 Save()
-    
+
 #region UI系
 
 class ExpireModal(discord.ui.Modal, title="有効期限を設定してください"):
@@ -452,7 +461,7 @@ class WaitingExpire(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(discord.ui.Button(label=f"{expire_at} に削除されます", style=discord.ButtonStyle.grey, disabled=True, custom_id="ExpireTime"))
         self.add_item(discord.ui.Button(label="メッセージを開く", style=discord.ButtonStyle.link, url=jump_url))
-    
+
 #region コマンド
 
 @tree.command(name='forecast', description="天気予報を表示します")
@@ -483,7 +492,7 @@ async def help(itr: discord.Interaction):
 
 @tree.command(name='reload', description="jsonファイルを再読み込みします")
 async def reload(itr: discord.Interaction):
-    if str(itr.user.id) in admins:
+    if itr.user.id in ADMIN_USER_IDS:
         await Thread_Refresh()
         Load()
         await Reply(itr, 0, "完了", "jsonファイルを再読み込みしました", True)
@@ -527,7 +536,7 @@ async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bo
 @app_commands.describe(msgs = "メッセージリンクのリスト...半角空白で区切って複数のメッセージを選択します")
 async def delete(itr:discord.Interaction, msgs: str):
     global data
-    if str(itr.user.id) not in admins:
+    if itr.user.id not in ADMIN_USER_IDS:
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
         return
@@ -565,7 +574,7 @@ async def delete(itr:discord.Interaction, msgs: str):
 @app_commands.describe(reset = "自動通知をリセットするか", channel = "通知を送信するチャンネルのメンション", times = "通知する時間をカンマ区切りで指定 (例: 21600,43200,64800)", mentions = "メンションをカンマ区切りで指定 (例: @user1,@user2,@user3)", greeting = "挨拶をカンマ区切りで指定 (例: おはよう,こんにちは,こんばんは)")
 async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: str = None, times: str = None, mentions: str = None, greeting: str = None):
     global data
-    if str(itr.user.id) not in admins:
+    if itr.user.id not in ADMIN_USER_IDS:
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
         return
@@ -670,7 +679,7 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
     elif not (is_discord_emoji(emoji) or is_unicode_emoji(emoji)):
         itr.command_failed = True
         await Reply(itr,2, "エラー", "絵文字が適正ではありません")
-    elif not ((str(itr.user.id) not in admins) or str(itr.user.id) == data["notice_group"][emoji]["owner"]):
+    elif not ((itr.user.id not in ADMIN_USER_IDS) or str(itr.user.id) == data["notice_group"][emoji]["owner"]):
         itr.command_failed = True
         await Reply(itr,2, "エラー", "指定されたスレッドの所有者ではありません")
     else:
@@ -806,7 +815,7 @@ async def stats(itr: discord.Interaction, channel: discord.VoiceChannel):
 @tree.command(name='set_forum', description="このボットがメインで動くフォーラムを指定します")
 @app_commands.describe(forum = "フォーラムチャンネル")
 async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
-    if not str(itr.user.id) in admins:
+    if not itr.user.id in ADMIN_USER_IDS:
         itr.command_failed = True
         await Reply(itr,2, "エラー", "このコマンドは管理者のみ使用できます", False)
     else:
