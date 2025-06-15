@@ -251,7 +251,7 @@ def Make_embed_forecast(when = "today", customdata = None):
 async def on_ready():
     global data
     print(f"Bot logged in as {bot.user}")
-    activity = "元気に動いてるわよ"
+    activity = f"元気に動いてるわよ {time.strftime('%Y/%m/%d %H:%M:%S')} に起きたわ"
     await bot.change_presence(activity=discord.CustomActivity(name=activity))
     await tree.sync()
     await Thread_Refresh()
