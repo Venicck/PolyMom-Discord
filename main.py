@@ -117,12 +117,15 @@ async def Reply(itr: discord.Interaction, type:int, title: str, message: str, pr
 
 async def Thread_Refresh():
     global data
+    emojis_to_remove = []
     for emoji in data["notice_group"]:
         channel = bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
         if channel is None:
-            del data["notice_group"][emoji]
-            Save()
-            await LogCh(data["log_channel"], f"{emoji} のスレッドが見つかりませんでした。\n不具合を防ぐためコマンドから削除するようにしてください。")
+            emojis_to_remove.append(emoji)
+
+    for emoji in emojis_to_remove:
+        del data["notice_group"][emoji]
+        Save()
 
 async def LogCh(channel_id, string: str):
     """指定されたスレッドにメッセージを送信します"""
