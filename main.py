@@ -443,7 +443,7 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
                                 await itr.message.edit(view=WaitingExpire(expire_at, msg.jump_url))
                                 await Reply(itr, 0, "成功", f"{expire_at} に有効期限を設定しました", True)
                                 break
-                            except discord.NotFound:
+                            except:
                                 itr.command_failed = True
                                 await Reply(itr,2, "エラー", "元のメッセージが削除されていたため有効期限は登録できません", True)
                                 msg_to_delete.append(message)
