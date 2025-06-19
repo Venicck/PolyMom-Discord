@@ -688,7 +688,7 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
     global data
     if not emoji in data["notice_group"]:
         itr.command_failed = True
-        Reply(itr,2, "エラー", "その絵文字で登録されているスレッドはありません。")
+        await Reply(itr,2, "エラー", "その絵文字で登録されているスレッドはありません。")
     elif not (is_discord_emoji(emoji) or is_unicode_emoji(emoji)):
         itr.command_failed = True
         await Reply(itr,2, "エラー", "絵文字が適正ではありません")
