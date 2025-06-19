@@ -432,15 +432,25 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
             else:
                 is_found = False
                 for emoji in data["notice_group"]:
+                    msg_to_delete = []
                     for message in data["notice_group"][emoji]["messages"]:
                         if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == str(itr.message.id):
                             data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
                             is_found = True
                             Save()
-                            msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
-                            await itr.message.edit(view=WaitingExpire(expire_at, msg.jump_url))
-                            await Reply(itr, 0, "成功", f"{expire_at} に有効期限を設定しました", True)
-                            break
+                            try: 
+                                msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
+                                await itr.message.edit(view=WaitingExpire(expire_at, msg.jump_url))
+                                await Reply(itr, 0, "成功", f"{expire_at} に有効期限を設定しました", True)
+                                break
+                            except discord.NotFound:
+                                itr.command_failed = True
+                                await Reply(itr,2, "エラー", "元のメッセージが削除されていたため有効期限は登録できません", True)
+                                msg_to_delete.append(message)
+                                break
+                    for msg in msg_to_delete:
+                        del data["notice_group"][emoji]["messages"][msg]
+                    Save()
                 if not is_found:
                     itr.command_failed = True
                     await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください", True)
