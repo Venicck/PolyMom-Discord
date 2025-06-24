@@ -54,29 +54,10 @@ def Load():
         data = doc.to_dict()
         LogSys(0,"json loaded")
     Initialize()
-    # if not os.path.exists(path_json):
-    #     with open(path_json, "w", encoding="utf-8_sig") as f:
-    #         json.dump({}, f, indent=4, ensure_ascii=False)
-    #         LogSys(0,"json file created")
-    # try:
-    #     with open(path_json, "r", encoding="utf-8_sig") as f:
-    #         data = json.load(f)
-    #         Initialize()
-    #         LogSys(0,"json loaded")
-    # except Exception as e:
-    #     LogSys(2,"json load failed")
-    #     print(f"{type(e)} : {str(e)}")
 
 def Save():
     db.collection("bot").document("data").set(data)
     LogSys(0,"json saved")
-    # try:
-    #     with open(path_json, "w", encoding="utf-8_sig") as f:
-    #         json.dump(data, f, indent=4, ensure_ascii=False)
-    #         LogSys(0,"json saved")
-    # except Exception as e:
-    #     LogSys(2,"json file save failed")
-    #     print(f"{type(e)} : {str(e)}")
 
 def Initialize(): # 変数の初期化
     dists={
@@ -881,7 +862,6 @@ async def Check_expires():
 設定された時間に天気予報を自動で通知する
 30秒ごとに次の通知時間まで一分を切ったらその時間まで待機してメッセージを送信。
 Last_noticedフラグを使って、同じ時間に複数回通知されないようにする。
-復帰機能は未実装。
 """
 @tasks.loop(seconds=30)
 async def Auto_Forecast():

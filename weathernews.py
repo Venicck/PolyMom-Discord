@@ -1,4 +1,4 @@
-import requests, random, japanize_matplotlib, math, time
+import requests, japanize_matplotlib, math, time
 # japanize_matplotlibは日本語を表示するためのライブラリ なので消さない
 from bs4 import BeautifulSoup
 from matplotlib import pyplot as pyp
@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 url = "https://weathernews.jp/onebox/35.655580/139.543914/"
 TEMP_IMG_PATH = "./img_make/img-template.png"
+RESOLUTION = (1650, 1080) # 画像の解像度
 
 def Get_weather(day):
     req = requests.get(url)
@@ -37,7 +38,7 @@ def Judge_weather(link):
     else:
         return "不明"
 
-def Make_graph(data):
+def Make_graph(data, day):
     color = [(230, 126, 34), (153, 153, 153), (52, 152, 219), (229, 229, 229)] # 晴れ, くもり, 雨, 雪
     color_normalized = [(r/255, g/255, b/255) for r, g, b in color]
     c_rainy, c_snowy = color_normalized[2], color_normalized[3] # Matplotlibの色は0-1の範囲なので255で割る
@@ -111,29 +112,40 @@ def Make_graph(data):
     fig.subplots_adjust(bottom=0.2)
     fig.tight_layout()
     
-    pyp.show()
-    
     # 画像の保存と返り値の決定
-    filename = f"{time.strftime('%Y%m%d')}.png"
+    filename = f"./created_images/graph-{time.strftime('%Y%m')}{day}.png"
     pyp.savefig(filename)
-    ret_color = ()
+    temps = [int(data[f"{i}"]["temp"]) for i in range(24)]
+    wet = ""
     if snowy > 0:
-        ret_color = color[3]
+        wet = "雪あり"
     elif rainy > 0:
-        ret_color = color[2]
+        wet = "雨あり"
     elif cloudy > sunny:
-        ret_color = color[1]
+        wet = "曇り"
     else:
-        ret_color = color[0]
-    return filename, ret_color
+        wet = "晴れ"
+    return filename, wet, day, [min(temps), round(sum(temps)/len(temps)), max(temps)]
 
-def Make_image(filename, color):
-    img = Image.new('RGB', (1650, 1080), color=color)
-    temp_img = Image.open(TEMP_IMG_PATH)
-    img.paste(temp_img, quality=100)
-    img_draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype("./img_make/MPLUSRounded.ttf", 100)
-    print(filename)
+def Make_image(filename, weather, day, min=0, avg=0, max=0):
+    color = {"晴れ":"#F39C12FF", "曇り":"#7F8C8DFF", "雨あり":"#44CED8FF", "雪あり":"#A6A6A6FF"}
+    bg = Image.new('RGBA', RESOLUTION, color[weather])
+    temp_img = Image.open(TEMP_IMG_PATH, 'r').convert('RGBA') # 画像をRGBAモードに変換
+    img = Image.alpha_composite(bg, temp_img)
+    graph_img = Image.open(filename)
+    img.paste(graph_img, (70, 200)) # グラフを配置
+    head_font = ImageFont.truetype("./img_make/MPLUSRounded.ttf", 80)
+    text_font = ImageFont.truetype("./img_make/MPLUSRounded.ttf", 50)
+    legend_font = ImageFont.truetype("./img_make/MPLUSRounded.ttf", 20)
+    draw = ImageDraw.Draw(img)
+    draw.text((800, 100), f"{time.strftime('%Y/%m/')}{day} の天気", "#FFFFFF", font=head_font, anchor="mm")
+    draw.text((97, 845), f"天気\n気温\n降水量", "#404040", font=legend_font, anchor="mm", align="right")
+    draw.text((500, 1000), f"最低:{min}℃ 平均:{avg}℃ 最高:{max}℃", "#4C4C4C", font=text_font, anchor="mm")
+    WETPOS = (1370, 1000)
+    draw.text(WETPOS, weather, color[weather], font=text_font, anchor="mm")
     
+    img.save(f"./created_images/forecast-{time.strftime('%Y%m')}{day}.png", "PNG")
 
-Make_graph(Get_weather(11))
+request_day = 24
+graph = Make_graph(Get_weather(request_day), request_day)
+Make_image(graph[0], graph[1], graph[2], graph[3][0], graph[3][1], graph[3][2])
