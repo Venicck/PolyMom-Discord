@@ -5,7 +5,7 @@ from matplotlib import pyplot as pyp
 from PIL import Image, ImageDraw, ImageFont
 
 url = "https://weathernews.jp/onebox/35.655580/139.543914/"
-TEMP_IMG_PATH = "./img_make/img-template.png"
+TEMP_IMG_PATH = "img_make/img-template.png"
 RESOLUTION = (1650, 1080) # 画像の解像度
 
 def Get_weather(day):
@@ -113,7 +113,7 @@ def Make_graph(data, day):
     fig.tight_layout()
     
     # 画像の保存と返り値の決定
-    filename = f"./created_images/graph-{time.strftime('%Y%m')}{day}.png"
+    filename = f"created_images/graph-{time.strftime('%Y%m')}{day}.png"
     pyp.savefig(filename)
     temps = [int(data[f"{i}"]["temp"]) for i in range(24)]
     wet = ""
@@ -134,9 +134,9 @@ def Make_image(filename, weather, day, min=0, avg=0, max=0):
     img = Image.alpha_composite(bg, temp_img)
     graph_img = Image.open(filename)
     img.paste(graph_img, (70, 200)) # グラフを配置
-    head_font = ImageFont.truetype("./img_make/MPLUSRounded.ttf", 80)
-    text_font = ImageFont.truetype("./img_make/MPLUSRounded.ttf", 50)
-    legend_font = ImageFont.truetype("./img_make/MPLUSRounded.ttf", 20)
+    head_font = ImageFont.truetype("img_make/MPLUSRounded.ttf", 80)
+    text_font = ImageFont.truetype("img_make/MPLUSRounded.ttf", 50)
+    legend_font = ImageFont.truetype("img_make/MPLUSRounded.ttf", 20)
     draw = ImageDraw.Draw(img)
     draw.text((800, 100), f"{time.strftime('%Y/%m/')}{day} の天気", "#FFFFFF", font=head_font, anchor="mm")
     draw.text((97, 845), f"天気\n気温\n降水量", "#404040", font=legend_font, anchor="mm", align="right")
@@ -144,8 +144,8 @@ def Make_image(filename, weather, day, min=0, avg=0, max=0):
     WETPOS = (1370, 1000)
     draw.text(WETPOS, weather, color[weather], font=text_font, anchor="mm")
     
-    img.save(f"./created_images/forecast-{time.strftime('%Y%m')}{day}.png", "PNG")
+    img.save(f"created_images/forecast-{time.strftime('%Y%m')}{day}.png", "PNG")
 
-request_day = 24
+request_day = 30
 graph = Make_graph(Get_weather(request_day), request_day)
 Make_image(graph[0], graph[1], graph[2], graph[3][0], graph[3][1], graph[3][2])
