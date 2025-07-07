@@ -120,7 +120,7 @@ async def LogCh(channel_id, string: str):
 def LogSys(type:int, string: str):
     """type: {0:成功, 1:情報, 2:エラー, 3:その他}"""
     colors = ["Success", "Info", "Error", "Other"]
-    print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {colors[type]} | {string} ")
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {colors[type]} | {string} ")
 
 def DaytimeToList(time : int):
     hours = time // 3600
@@ -836,7 +836,6 @@ async def Check_expires():
     now = time.time()
     is_changed = False
     for emoji in data["notice_group"]:
-        i = 0
         to_delete = []
         for message in data["notice_group"][emoji]["messages"]:
             if "expire_at" in data["notice_group"][emoji]["messages"][message]:
@@ -851,7 +850,7 @@ async def Check_expires():
                     is_changed = True
         for msg in to_delete:
             del data["notice_group"][emoji]["messages"][msg]
-        if i > 0:
+        if len(to_delete) > 0:
             await bot.get_channel(int(data["log_channel"])).send(f"{emoji} の有効期限の切れた転送メッセージを削除しました")
     await Thread_Refresh()
     if is_changed:

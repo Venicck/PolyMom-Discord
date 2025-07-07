@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import requests, japanize_matplotlib, math, time
 # japanize_matplotlibは日本語を表示するためのライブラリ なので消さない
 from bs4 import BeautifulSoup
@@ -113,7 +114,7 @@ def Make_graph(data, day):
     fig.tight_layout()
     
     # 画像の保存と返り値の決定
-    filename = f"created_images/graph-{time.strftime('%Y%m')}{day}.png"
+    filename = f"created_images/graph-{time.strftime('%Y%m')}{day:02}.png"
     pyp.savefig(filename)
     temps = [int(data[f"{i}"]["temp"]) for i in range(24)]
     wet = ""
@@ -138,14 +139,14 @@ def Make_image(filename, weather, day, min=0, avg=0, max=0):
     text_font = ImageFont.truetype("img_make/MPLUSRounded.ttf", 50)
     legend_font = ImageFont.truetype("img_make/MPLUSRounded.ttf", 20)
     draw = ImageDraw.Draw(img)
-    draw.text((800, 100), f"{time.strftime('%Y/%m/')}{day} の天気", "#FFFFFF", font=head_font, anchor="mm")
+    draw.text((800, 100), f"{time.strftime('%Y/%m/')}{day:02} の天気", "#FFFFFF", font=head_font, anchor="mm")
     draw.text((97, 845), f"天気\n気温\n降水量", "#404040", font=legend_font, anchor="mm", align="right")
     draw.text((500, 1000), f"最低:{min}℃ 平均:{avg}℃ 最高:{max}℃", "#4C4C4C", font=text_font, anchor="mm")
     WETPOS = (1370, 1000)
     draw.text(WETPOS, weather, color[weather], font=text_font, anchor="mm")
-    
-    img.save(f"created_images/forecast-{time.strftime('%Y%m')}{day}.png", "PNG")
 
-request_day = 30
+    img.save(f"created_images/forecast-{time.strftime('%Y%m')}{day:02}.png", "PNG")
+
+request_day = 2
 graph = Make_graph(Get_weather(request_day), request_day)
 Make_image(graph[0], graph[1], graph[2], graph[3][0], graph[3][1], graph[3][2])
