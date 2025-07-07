@@ -5,7 +5,6 @@ import asyncio
 import re
 import datetime
 import traceback
-import random
 
 import requests
 import discord
@@ -25,6 +24,7 @@ db = firestore.client()
 bot = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(bot)
 
+JST = datetime.timezone(datetime.timedelta(hours=9))  # 日本標準時
 YAHOO_URL = "https://weather.yahoo.co.jp/weather/13/4410/13208.html"
 ADMIN_USER_IDS = {302957994675535872, 711540575043715172, 747726536844771350}
 EMOJI_PATTERN = re.compile(
@@ -275,6 +275,21 @@ async def on_message(msg : discord.Message):
                 file.close()
                 await msg.author.send(f"jsonデータをエクスポートしました。", file=discord.File(fp='data_temp.json', filename=f"{time.strftime('%Y%m%d_%H%M%S')}-Polymom-Data.json"))
                 os.remove('data_temp.json')
+            elif cmd == "upload":
+                if len(msg.attachments) <= 0:
+                    await msg.author.send("JSONファイルを添付して再度実行してください。")
+                elif len(msg.attachments) > 1:
+                    await msg.author.send("JSONファイルは1つだけ添付してください。")
+                else:
+                    await msg.attachments[0].save('data_temp.json')
+                    with open('data_temp.json', 'r', encoding='utf-8') as file:
+                        new_data : dict = json.load(file)
+                        data = new_data.copy()
+                        Save()
+                        del new_data
+                        await msg.author.send("JSONファイルをアップロードして再読み込みしました。")
+                    if os.path.exists('data_temp.json'):
+                        os.remove('data_temp.json')
     if msg_log_mode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
 
@@ -855,6 +870,18 @@ async def Check_expires():
     await Thread_Refresh()
     if is_changed:
         Save()
+
+"""
+JSON データのバックアップを取らせる
+"""
+@tasks.loop(time=datetime.time(hour=0, minute=0, second=0, tzinfo=JST)) # 毎日0時にバックアップ
+async def Backup_json():
+    global data
+    if not os.path.exists("backup"):
+        os.makedirs("backup")
+    backup_file = f"backup/data_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    with open(backup_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 #region 天気予報
 """
