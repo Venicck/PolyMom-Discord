@@ -275,7 +275,7 @@ async def on_message(msg : discord.Message):
                 file.close()
                 await msg.author.send(f"jsonデータをエクスポートしました。", file=discord.File(fp='data_temp.json', filename=f"{time.strftime('%Y%m%d_%H%M%S')}-Polymom-Data.json"))
                 os.remove('data_temp.json')
-            elif cmd == "upload":
+            elif cmd == "import":
                 if len(msg.attachments) <= 0:
                     await msg.author.send("JSONファイルを添付して再度実行してください。")
                 elif len(msg.attachments) > 1:
@@ -290,6 +290,29 @@ async def on_message(msg : discord.Message):
                         await msg.author.send("JSONファイルをアップロードして再読み込みしました。")
                     if os.path.exists('data_temp.json'):
                         os.remove('data_temp.json')
+            elif cmd == "restore":
+                global data
+                ch_count = len(data["notice_group"])
+                ch_progress = 0
+                progress = await msg.channel.send(f"チャンネルの過去メッセージからデータを復元しています...\n進捗状況: 0 /{ch_count} channels")
+                for emoji in data["notice_group"]:
+                    ch_progress += 1
+                    await progress.edit(f"チャンネルの過去メッセージからデータを復元しています...\n進捗状況: {ch_progress} /{ch_count} channels")
+                    channel = bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
+                    if channel is None:
+                        continue
+                    else:
+                        async for message in channel.history(limit=None):
+                            if message.author.id == bot.user.id and message.components:
+                                for action_row in message.components:
+                                    for component in action_row.children:
+                                        if isinstance(component, discord.ui.Button) and component.label == "メッセージを開く":
+                                            url = component.url
+                                            # ここでurlを使って何か処理をする
+                                            print(f"Found URL: {url}")
+
+                await progress.delete()
+                await msg.channel.send("データの復元が完了しました。")
     if msg_log_mode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
 
@@ -882,6 +905,8 @@ async def Backup_json():
     backup_file = f"backup/data_{time.strftime('%Y%m%d_%H%M%S')}.json"
     with open(backup_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+    if os.path.exists(backup_file):
+        await bot.get_user(302957994675535872).send(f"@silent バックアップが作成されました", file=discord.File(fp=backup_file, filename=backup_file))
 
 #region 天気予報
 """
