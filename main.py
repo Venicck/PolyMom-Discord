@@ -291,7 +291,6 @@ async def on_message(msg : discord.Message):
                     if os.path.exists('data_temp.json'):
                         os.remove('data_temp.json')
             elif cmd == "restore":
-                global data
                 ch_count = len(data["notice_group"])
                 ch_progress = 0
                 progress = await msg.channel.send(f"チャンネルの過去メッセージからデータを復元しています...\n進捗状況: 0 /{ch_count} channels")
