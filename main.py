@@ -119,8 +119,8 @@ async def LogCh(channel_id, string: str):
 
 def LogSys(type:int, string: str):
     """type: {0:成功, 1:情報, 2:エラー, 3:その他}"""
-    colors = ["Success", "Info", "Error", "Other"]
-    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {colors[type]} | {string} ")
+    colors = ["PASS    ", "INFO    ", "ERROR   ", "OTHER   "]
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] |{colors[type]}| | {string} ")
 
 def DaytimeToList(time : int):
     hours = time // 3600
