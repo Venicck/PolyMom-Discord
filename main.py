@@ -55,9 +55,9 @@ def Load():
         LogSys(0,"json loaded")
     Initialize()
 
-def Save():
+def Save(reason : str = ""):
     db.collection("bot").document("data").set(data)
-    LogSys(0,"json saved")
+    LogSys(0,f"JSON Saved w:{reason}")
 
 def Initialize(): # 変数の初期化
     dists={
@@ -78,7 +78,7 @@ def Initialize(): # 変数の初期化
     for var in vars:
         if var not in data:
             data[var] = ""
-    Save()
+    Save("Initialize")
 
 #region 絵文字の判定
 def is_discord_emoji(s: str) -> bool:
@@ -106,7 +106,7 @@ async def Thread_Refresh():
 
     for emoji in emojis_to_remove:
         del data["notice_group"][emoji]
-        Save()
+        Save("thread_removed")
 
 async def LogCh(channel_id, string: str):
     """指定されたスレッドにメッセージを送信します"""
@@ -285,7 +285,7 @@ async def on_message(msg : discord.Message):
                     with open('data_temp.json', 'r', encoding='utf-8') as file:
                         new_data : dict = json.load(file)
                         data = new_data.copy()
-                        Save()
+                        Save("Imported")
                         del new_data
                         await msg.author.send("JSONファイルをアップロードして再読み込みしました。")
                     if os.path.exists('data_temp.json'):
@@ -359,7 +359,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                 "created_at": str(forward.created_at.timestamp()),
                 "attachments": attachments_dict
             }
-            Save()
+            Save("Message_forwarded")
 
 async def on_command_error(itr : discord.Interaction, error):
     if isinstance(error, commands.CommandNotFound):
@@ -396,7 +396,7 @@ async def on_guild_channel_delete(channel):
             if "ignore_channels" in data["notice_group"][emoji]:
                 if str(channel.id) in data["notice_group"][emoji]["ignore_channels"]:
                     data["notice_group"][emoji]["ignore_channels"].remove(str(channel.id))
-                    Save()
+                    Save("Ignore_channel_removed")
                     await bot.get_channel(int(data["log_channel"])).send(f"テキストチャンネルが削除されたため、 {emoji} の無視チャンネルリストから #{channel.name} を削除しました。")
 
 @bot.event
@@ -409,13 +409,13 @@ async def on_message_delete(msg):
                     msg_to_delete = message
             if msg_to_delete != "":
                 del data["notice_group"][emoji]["messages"][msg_to_delete]
-                Save()
+                Save("Forwarded_msg_deleted")
     else: # 転送されたメッセージの元メッセージが削除されたらDataから削除 + スレッド内も削除
         for emoji in data["notice_group"]:
             if str(msg.id) in data["notice_group"][emoji]["messages"]:
                 await bot.get_channel(int(data["notice_group"][emoji]["thread_id"])).fetch_message(int(data["notice_group"][emoji]["messages"][str(msg.id)]["forwarded_msg_id"])).delete()
                 del data["notice_group"][emoji]["messages"][str(msg.id)]
-                Save()
+                Save("Source_msg_deleted")
 
 #region UI系
 
@@ -455,7 +455,7 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
                         if data["notice_group"][emoji]["messages"][message]["forwarded_msg_id"] == str(itr.message.id):
                             data["notice_group"][emoji]["messages"][message]["expire_at"] = expire
                             is_found = True
-                            Save()
+                            Save("Expire_time_set")
                             try: 
                                 msg = await bot.get_channel(int(data["notice_group"][emoji]["messages"][message]["msg_channel_id"])).fetch_message(int(message))
                                 await itr.message.edit(view=WaitingExpire(expire_at, msg.jump_url))
@@ -468,7 +468,7 @@ class ExpireModal(discord.ui.Modal, title="有効期限を設定してくださ�
                                 break
                     for msg in msg_to_delete:
                         del data["notice_group"][emoji]["messages"][msg]
-                    Save()
+                    Save("Source_msg_not_found")
                 if not is_found:
                     itr.command_failed = True
                     await Reply(itr,2, "エラー", "そのメッセージは転送されたものではありません\nスレッドに転送されたメッセージのリンクを指定してください", True)
@@ -617,7 +617,7 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
             data["weather"]["greetings"] = ["おはようございます。", "午後も頑張りましょう。", "こんばんは。"]
             data["weather"]["msg_channel"] = ""
             data["weather"]["last_noticed"] = 0
-            Save()
+            Save("Auto_forecast_reset")
             await Reply(itr, 0, "完了", "天気予報の自動通知をリセットしました", True)
         else:
             if channel is not None:
@@ -665,7 +665,7 @@ async def auto_forecast(itr: discord.Interaction, reset: bool = False, channel: 
                     return
                 else:
                     data["weather"]["greetings"] = [ls[0], ls[1], ls[2]]
-            Save()
+            Save("Weather_settings_updated")
             await Reply(itr, 0, "完了", "変更を適用しました。\n通知時間の変更はBotを再起動すると適用されます。", True)
 
 
@@ -696,7 +696,7 @@ async def add_thread(itr: discord.Interaction, emoji: str, thread_name: str):
                     "created_at": str(time.time()),
                     "messages":{}
                 }
-                Save()
+                Save("Thread_created")
                 await Reply(itr, 0, "スレッドを作成しました。", f"{thread.thread.mention} に {emoji} のリアクションがつけられたメッセージが自動転送されるようになりました。")
                 bot.get_channel(int(data["log_channel"])).send(f"{emoji} ➤ {thread.thread.mention} 連携スレッドが作成されました。")
 
@@ -718,7 +718,7 @@ async def remove_thread(itr: discord.Interaction, emoji: str):
             thread = bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
             await thread.delete(reason="コマンドによる削除")
             del data["notice_group"][emoji]
-            Save()
+            Save("Thread_removed")
             await Reply(itr,0, "成功", "スレッドを削除しました。")
         except:
             await Reply(itr,2, "エラー", "スレッドの削除に失敗しました。")
@@ -755,7 +755,7 @@ async def add_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
                     else:
                         data["notice_group"][emoji]["ignore_channels"].append(str(ch))
                         embed.add_field(name=f"<#{ch}>", value=f"追加されました。", inline=False)
-                Save()
+                Save("Ignore_emoji_channel_added")
                 await itr.response.send_message(embed=embed)
 
 @tree.command(name='remove_ignore_ch', description="転送を無視するチャンネルを削除します")
@@ -795,7 +795,7 @@ async def remove_ignore_ch(itr: discord.Interaction, emoji: str, channels: str):
                     else:
                         
                         embed.add_field(name=f"<#{ch}>", value=f"無視リストにないチャンネルです。", inline=False)
-                Save()
+                Save("Ignore_emoji_channel_removed")
                 await itr.response.send_message(embed=embed)
 
 @tree.command(name='stats_thread', description="絵文字と連携されているスレッドの詳細を確認します")
@@ -855,7 +855,7 @@ async def set_forum(itr: discord.Interaction, forum: discord.ForumChannel):
         data["target_forum"] = str(forum.id)
         data["log_channel"] = str(log_channel.thread.id)
         data["cmd_channel"] = str(cmd_channel.thread.id)
-        Save()
+        Save("Forum_set")
         await Reply(itr, 0, "成功", f"フォーラムを{forum.mention}に設定しました", False)
         await bot.get_channel(int(data["log_channel"])).send(f"{bot.user.mention} のログが当チャンネルに送信されるようになりました。")
         await bot.get_channel(int(data["log_channel"])).send(embed=discord.Embed(title="ボットを使う時のご注意", description="このフォーラムにスレッドをコマンドを使わずにスレッドを作成しても\n絵文字リアクションとの連携機能は使用できないので\n必ずコマンドを使ってスレッドを作成してください。", color=discord.Color.blue()))
@@ -891,7 +891,7 @@ async def Check_expires():
             await bot.get_channel(int(data["log_channel"])).send(f"{emoji} の有効期限の切れた転送メッセージを削除しました")
     await Thread_Refresh()
     if is_changed:
-        Save()
+        Save("Expired_msg_deleted")
 
 """
 JSON データのバックアップを取らせる
@@ -919,11 +919,11 @@ async def Auto_Forecast():
     nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
     if nt < 60 and data["weather"]["last_noticed"]: # 日付が変わったときの初期化処理
         data["weather"]["last_noticed"] = False
-        Save()
+        Save("Auto_forecast_Day_changed")
     for i in range(0, len(data["weather"]["notify_time"])):
         if (data["weather"]["notify_time"][i] - nt <= 60 and data["weather"]["notify_time"][i] - nt > 0) and not data["weather"]["last_noticed"]:
             data["weather"]["last_noticed"] = True
-            Save()
+            Save("Auto_forecast_Started_Countdown")
             await asyncio.sleep(data["weather"]["notify_time"][i] - nt) #通知時間まで待機
             emb, mention = Make_embed_forecast(data["weather"]["day"][i])
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
@@ -933,7 +933,7 @@ async def Auto_Forecast():
                 else:
                     await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
             data["weather"]["last_noticed"] = False
-            Save()
+            Save("Auto_forecast_Completed")
 
 tree.on_error = on_command_error
 token = os.getenv("DISCORD_TOKEN")
