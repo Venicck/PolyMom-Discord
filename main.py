@@ -563,6 +563,14 @@ async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bo
             await Reply(itr, 2, "エラー", "JSON形式での読み取りに失敗しました", True)
             return
 
+
+@tree.command(name="ping", description="ボットの応答時間を測定します")
+async def ping(itr: discord.Interaction):
+    start_time = time.time()
+    msg = await itr.response.sent_message("応答時間を計測中...")
+    end_time = time.time()
+    elapsed_time = (end_time - start_time) * 1000 # ミリ秒変換
+    await itr.followup.edit_message(msg.id, content=f"応答時間: {elapsed_time:.1f} ms")
 @tree.command(name="delete", description="メッセージを削除します")
 @app_commands.describe(msgs = "メッセージリンクのリスト...半角空白で区切って複数のメッセージを選択します")
 async def delete(itr:discord.Interaction, msgs: str):

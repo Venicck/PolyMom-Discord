@@ -4,3 +4,5 @@ Ptoken.py
 __pycache__/Ptoken.cpython-312.pyc
 /ignore
 autorun.sh
+created_images/*.png
+created_images/*.jpg
