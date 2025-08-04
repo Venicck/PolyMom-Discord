@@ -10,6 +10,7 @@ from datetime import datetime as dt
 class WeatherNews(Exception):
     def __init__(self, template_img_path = "img_make/img-template.png"):
         self.day = None
+        color = {"晴れ":"#F39C12FF", "曇り":"#7F8C8DFF", "雨あり":"#44CED8FF", "雪あり":"#A6A6A6FF"}
         self.exported_graph_path = None
         self.exported_image_path = None
         self.RESOLUTION = (1650, 1080) # 画像の解像度
@@ -18,6 +19,7 @@ class WeatherNews(Exception):
         self.url = "https://weathernews.jp/onebox/35.655580/139.543914/"
         self.weather_data = {}
         self.requested_day = None
+        self.footer = ""
 
         # グラフ作成後の変数
         self.max_temp = None
@@ -41,8 +43,6 @@ class WeatherNews(Exception):
         elif not istoday:
             self.do_mention = True
         
-    
-        
     def Get_weather(self, day : int):
         today = dt.now().timestamp()
         self.day = day
@@ -59,6 +59,7 @@ class WeatherNews(Exception):
                 self.requested_day = i
         
         req = requests.get(self.url)
+        self.footer = f"{time.strftime('%Y/%m/%d %H:%M:%S')} 現在に取得"
         Soup = BeautifulSoup(req.text, "html.parser")
         weather_data = {}
         day_found = False
@@ -84,14 +85,13 @@ class WeatherNews(Exception):
             weather_data[hour]["temp"] = time.select('li.temp')[0].text.replace('\n', '').replace('℃', '')
             weather_data[hour]["wind"] = time.select('li.wind > p')[0].text.replace('\n', '')
         self.weather_data = weather_data
+        if len(self.weather_data) != 24:
+            raise FullDataNotFoundOnWeatherNews("Weather data is not enough. Expected 24 hours data, but got less.")
         
     def Make_graph(self): 
-
         color = [(230, 126, 34), (153, 153, 153), (52, 152, 219), (229, 229, 229)] # 晴れ, くもり, 雨, 雪
         color_normalized = [(r/255, g/255, b/255) for r, g, b in color]
         c_rainy, c_snowy = color_normalized[2], color_normalized[3] # Matplotlibの色は0-1の範囲なので255で割る
-        if len(self.weather_data) != 24:
-            raise FullDataNotFoundOnWeatherNews("Weather data is not enough. Expected 24 hours data, but got less.")
         # グラフの描画
         x = range(24)
         y = [int(self.weather_data[f"{i}"]["temp"]) for i in self.weather_data]
@@ -185,8 +185,7 @@ class WeatherNews(Exception):
         self.exported_graph_path = filename
     
     def Make_image(self):
-        color = {"晴れ":"#F39C12FF", "曇り":"#7F8C8DFF", "雨あり":"#44CED8FF", "雪あり":"#A6A6A6FF"}
-        bg = Image.new('RGBA', self.RESOLUTION, color[self.overall_weather])
+        bg = Image.new('RGBA', self.RESOLUTION, self.color[self.overall_weather])
         temp_img = Image.open(self.TEMPLATE_PATH, 'r').convert('RGBA') # 画像をRGBAモードに変換
         img = Image.alpha_composite(bg, temp_img)
         graph_img = Image.open(self.exported_graph_path)
@@ -200,7 +199,7 @@ class WeatherNews(Exception):
         draw.text((97, 845), f"天気\n気温\n降水量", "#404040", font=legend_font, anchor="mm", align="right")
         draw.text((500, 1000), f"最低:{self.min_temp}℃ 平均:{self.avg_temp}℃ 最高:{self.max_temp}℃", "#4C4C4C", font=text_font, anchor="mm")
         WETPOS = (1370, 1000)
-        draw.text(WETPOS, self.overall_weather, color[self.overall_weather], font=text_font, anchor="mm")
+        draw.text(WETPOS, self.overall_weather, self.color[self.overall_weather], font=text_font, anchor="mm")
 
         img.save(f"created_images/forecast-{self.requested_day}.png", "PNG")
         self.exported_image_path = f"created_images/forecast-{self.requested_day}.png"
