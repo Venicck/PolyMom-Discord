@@ -515,7 +515,7 @@ async def forecast(itr: discord.Interaction, target_day: int = 0, json_export: b
         else:
             wn.Make_graph()
             wn.Make_image()
-            emb = discord.Embed(title=f"{wn.requested_day} の天気予報", color=discord.Color.from_str(wn.color[wn.overall_weather][:6]))
+            emb = discord.Embed(title=f"{wn.requested_day} の天気予報", color=discord.Color.from_str(wn.bar_color[:7]))
             file = discord.File(wn.exported_image_path, filename=f"{wn.requested_day}-forecast.png")
             emb.set_image(url=f"attachment://{wn.requested_day}-forecast.png")
             emb.set_footer(text=wn.footer)

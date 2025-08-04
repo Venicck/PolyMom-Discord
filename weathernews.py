@@ -10,7 +10,6 @@ from datetime import datetime as dt
 class WeatherNews(Exception):
     def __init__(self, template_img_path = "./img_make/img-template.png"):
         self.day = None
-        color = {"晴れ":"#F39C12FF", "曇り":"#7F8C8DFF", "雨あり":"#44CED8FF", "雪あり":"#A6A6A6FF"}
         self.exported_graph_path = None
         self.exported_image_path = None
         self.RESOLUTION = (1650, 1080) # 画像の解像度
@@ -29,6 +28,7 @@ class WeatherNews(Exception):
 
         # 画像作成用の変数
         self.color = {"晴れ":"#F39C12FF", "曇り":"#7F8C8DFF", "雨あり":"#44CED8FF", "雪あり":"#A6A6A6FF"}
+        self.bar_color = ""
 
     def Judge_weather(self, link):
         imgs = {'https://gvs.weathernews.jp/onebox/img/wxicon/500.png': '晴れ','https://gvs.weathernews.jp/onebox/img/wxicon/100.png': '晴れ', 'https://gvs.weathernews.jp/onebox/img/wxicon/550.png': '猛暑', 'https://gvs.weathernews.jp/onebox/img/wxicon/101.png': '晴れ時々くもり', 'https://gvs.weathernews.jp/onebox/img/wxicon/102.png': '晴れ一時雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/104.png': '晴れ一時雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/110.png': '晴れのちくもり', 'https://gvs.weathernews.jp/onebox/img/wxicon/112.png': '晴れのち雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/115.png': '晴れのち雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/200.png': 'くもり', 'https://gvs.weathernews.jp/onebox/img/wxicon/201.png': 'くもり時々晴れ', 'https://gvs.weathernews.jp/onebox/img/wxicon/202.png': 'くもり時々雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/204.png': 'くもり時々雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/210.png': 'くもりのち晴れ', 'https://gvs.weathernews.jp/onebox/img/wxicon/212.png': 'くもりのち雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/215.png': 'くもりのち雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/650.png': '小雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/300.png': '雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/850.png': '大雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/301.png': '雨時々晴れ', 'https://gvs.weathernews.jp/onebox/img/wxicon/302.png': '雨時々止む', 'https://gvs.weathernews.jp/onebox/img/wxicon/303.png': '雨一時雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/311.png': '雨のち晴れ', 'https://gvs.weathernews.jp/onebox/img/wxicon/313.png': '雨のちくもり', 'https://gvs.weathernews.jp/onebox/img/wxicon/314.png': '雨のち雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/430.png': 'みぞれ', 'https://gvs.weathernews.jp/onebox/img/wxicon/400.png': '雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/950.png': '大雪', 'https://gvs.weathernews.jp/onebox/img/wxicon/401.png': '雪時々晴れ', 'https://gvs.weathernews.jp/onebox/img/wxicon/402.png': '雪時々止む', 'https://gvs.weathernews.jp/onebox/img/wxicon/403.png': '雪時々雨', 'https://gvs.weathernews.jp/onebox/img/wxicon/411.png': '雪のち晴れ', 'https://gvs.weathernews.jp/onebox/img/wxicon/413.png': '雪のちくもり', 'https://gvs.weathernews.jp/onebox/img/wxicon/414.png': '雪のち雨'}
@@ -181,11 +181,12 @@ class WeatherNews(Exception):
         self.max_temp = max(temps)
         self.min_temp = min(temps)
         self.avg_temp = round(sum(temps) / len(temps))
+        self.bar_color = self.color[wet]
         self.overall_weather = wet
         self.exported_graph_path = filename
     
     def Make_image(self):
-        bg = Image.new('RGBA', self.RESOLUTION, self.color[self.overall_weather])
+        bg = Image.new('RGBA', self.RESOLUTION, self.bar_color)
         temp_img = Image.open(self.TEMPLATE_PATH, 'r').convert('RGBA') # 画像をRGBAモードに変換
         img = Image.alpha_composite(bg, temp_img)
         graph_img = Image.open(self.exported_graph_path)
