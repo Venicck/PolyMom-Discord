@@ -77,13 +77,13 @@ class WeatherNews(Exception):
         
         table = Soup.select(f'#flick_list_1hour > div:nth-child({pointer}) > div.wx1h_content')
         times = table[0].find_all("ul")
-        for time in times:
-            hour = time.select('li.time')[0].text.replace('\n','')
+        for t in times:
+            hour = t.select('li.time')[0].text.replace('\n','')
             weather_data[hour] = {}
-            weather_data[hour]["weather"] = self.Judge_weather(time.select('li.weather > figure')[0].find('img')['src']) # 画像リンクによる条件式が必要
-            weather_data[hour]["rain"] = time.select('li.rain')[0].text.replace('\n', '')
-            weather_data[hour]["temp"] = time.select('li.temp')[0].text.replace('\n', '').replace('℃', '')
-            weather_data[hour]["wind"] = time.select('li.wind > p')[0].text.replace('\n', '')
+            weather_data[hour]["weather"] = self.Judge_weather(t.select('li.weather > figure')[0].find('img')['src']) # 画像リンクによる条件式が必要
+            weather_data[hour]["rain"] = t.select('li.rain')[0].text.replace('\n', '')
+            weather_data[hour]["temp"] = t.select('li.temp')[0].text.replace('\n', '').replace('℃', '')
+            weather_data[hour]["wind"] = t.select('li.wind > p')[0].text.replace('\n', '')
         self.weather_data = weather_data
         if len(self.weather_data) != 24:
             raise FullDataNotFoundOnWeatherNews("Weather data is not enough. Expected 24 hours data, but got less.")
