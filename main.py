@@ -292,12 +292,10 @@ async def on_message(msg : discord.Message):
                     if os.path.exists('data_temp.json'):
                         os.remove('data_temp.json')
             elif cmd == "restore":
-                ch_count = len(data["notice_group"])
-                ch_progress = 0
-                progress = await msg.channel.send(f"チャンネルの過去メッセージからデータを復元しています...\n進捗状況: 0 /{ch_count} channels")
+                count_restored = 0
+                progress = await msg.channel.send(f"チャンネルの過去メッセージからデータを復元しています...")
                 for emoji in data["notice_group"]:
-                    ch_progress += 1
-                    await progress.edit(f"チャンネルの過去メッセージからデータを復元しています...\n進捗状況: {ch_progress} /{ch_count} channels")
+                    await progress.edit(f"チャンネルの過去メッセージからデータを復元しています...\n復元したメッセージ数: {count_restored}")
                     channel = bot.get_channel(int(data["notice_group"][emoji]["thread_id"]))
                     if channel is None:
                         continue
@@ -309,10 +307,22 @@ async def on_message(msg : discord.Message):
                                         if isinstance(component, discord.ui.Button) and component.label == "メッセージを開く":
                                             url = component.url
                                             # ここでurlを使って何か処理をする
-                                            print(f"Found URL: {url}")
+                                            if str(url.split("/")[-1]) in data["notice_group"][emoji]["messages"]:
+                                                continue
+                                            msg_source = await channel.fetch_message(url.split("/")[-1])
+                                            data["notice_group"][emoji]["messages"][str(url.split("/")[-1])] = {
+                                                "forwarded_msg_id": str(message.id),
+                                                "msg_channel_id": str(url.split("/")[-2]),
+                                                "user_id": str(msg_source.author.id),
+                                                "sent_at": str(msg.created_at.timestamp()),
+                                                "created_at": str(msg_source.created_at.timestamp()),
+                                                "attachments": msg_source.attachments if msg_source.attachments else []
+                                            }
+                                            count_restored += 1
+                        Save("Restored")
 
                 await progress.delete()
-                await msg.channel.send("データの復元が完了しました。")
+                await msg.channel.send(f"データの復元が完了しました。復元したメッセージ数: {count_restored}")
     if msg_log_mode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
 
@@ -959,7 +969,7 @@ async def Backup_json():
 30秒ごとに次の通知時間まで一分を切ったらその時間まで待機してメッセージを送信。
 Last_noticedフラグを使って、同じ時間に複数回通知されないようにする。
 """
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=15)
 async def Auto_Forecast():
     global data
     nt = time.localtime().tm_hour * 3600 + time.localtime().tm_min * 60 + time.localtime().tm_sec
@@ -971,13 +981,25 @@ async def Auto_Forecast():
             data["weather"]["last_noticed"] = True
             Save("Auto_forecast_Started_Countdown")
             await asyncio.sleep(data["weather"]["notify_time"][i] - nt) #通知時間まで待機
-            emb, mention = Make_embed_forecast(data["weather"]["day"][i])
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
+            wn = weathernews.WeatherNews()
+            if data["weather"]["day"][i] == "today":
+                wn.Get_weather(0)
+            else:
+                wn.Get_weather(datetime.datetime.fromtimestamp(time.time() + 86400).day)
+            wn.Make_graph()
+            wn.Make_image()
+            mention = wn.do_mention
+            emb = discord.Embed(title=f"{wn.requested_day} の天気予報", color=discord.Color.from_str(wn.bar_color[:7]))
+            file = discord.File(wn.exported_image_path, filename=f"{wn.requested_day}-forecast.png")
+            emb.set_image(url=f"attachment://{wn.requested_day}-forecast.png")
+            emb.set_footer(text=wn.footer)
             if ch is not None:
                 if mention:
-                    await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb)
+                    await ch.send(f"# {data["weather"]["greetings"][i]}\n{data["weather"]["mention"][i]}", embed=emb, file=file)
                 else:
-                    await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb)
+                    await ch.send(f"# {data["weather"]["greetings"][i]}", embed=emb, file=file)
+
             data["weather"]["last_noticed"] = False
             Save("Auto_forecast_Completed")
 
