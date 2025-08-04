@@ -984,7 +984,7 @@ async def Auto_Forecast():
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
             wn = weathernews.WeatherNews()
             if data["weather"]["day"][i] == "today":
-                wn.Get_weather(0)
+                wn.Get_weather(time.localtime().tm_mday)
             else:
                 wn.Get_weather(datetime.datetime.fromtimestamp(time.time() + 86400).day)
             wn.Make_graph()
