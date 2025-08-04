@@ -8,7 +8,7 @@ from datetime import datetime as dt
 
 """注意！ このクラスを使用するときはタイムロケールが日本であるか確認すること！"""
 class WeatherNews(Exception):
-    def __init__(self, template_img_path = "img_make/img-template.png"):
+    def __init__(self, template_img_path = "./img_make/img-template.png"):
         self.day = None
         color = {"晴れ":"#F39C12FF", "曇り":"#7F8C8DFF", "雨あり":"#44CED8FF", "雪あり":"#A6A6A6FF"}
         self.exported_graph_path = None
@@ -165,7 +165,7 @@ class WeatherNews(Exception):
         # 画像の保存と返り値の決定
         if os.path.exists("created_images") is False:
             os.mkdir("created_images")
-        filename = f"created_images/graph-{self.requested_day}.png"
+        filename = f"./created_images/graph-{self.requested_day}.png"
         pyp.savefig(filename)
         temps = [int(self.weather_data[f"{i}"]["temp"]) for i in range(24)]
         wet = ""
@@ -201,8 +201,8 @@ class WeatherNews(Exception):
         WETPOS = (1370, 1000)
         draw.text(WETPOS, self.overall_weather, self.color[self.overall_weather], font=text_font, anchor="mm")
 
-        img.save(f"created_images/forecast-{self.requested_day}.png", "PNG")
-        self.exported_image_path = f"created_images/forecast-{self.requested_day}.png"
+        img.save(f"./created_images/forecast-{self.requested_day}.png", "PNG")
+        self.exported_image_path = f"./created_images/forecast-{self.requested_day}.png"
 
 class DayIsNotSet(WeatherNews):
     pass
