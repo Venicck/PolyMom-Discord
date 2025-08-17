@@ -615,10 +615,21 @@ async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bo
 @tree.command(name="ping", description="ボットの応答時間を測定します")
 async def ping(itr: discord.Interaction):
     start_time = time.time()
-    msg = await itr.response.send_message("応答時間を計測中...")
+    private = itr.user.id in ADMIN_USER_IDS
+    await itr.response.send_message("応答時間を計測中...", ephemeral=private)
     end_time = time.time()
     elapsed_time = (end_time - start_time) * 1000 # ミリ秒変換
-    await itr.edit_original_response(content=f"応答時間: {elapsed_time:.1f} ms")
+    if itr.user.id not in ADMIN_USER_IDS:
+        await itr.edit_original_response(content=f"応答時間: {elapsed_time:.1f} ms")
+    else:
+        import socket
+        connect_interface = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        connect_interface.connect(("8.8.8.8", 80))
+        local_ip = connect_interface.getsockname()[0]
+        connect_interface.close()
+
+        await itr.edit_original_response(content=f"応答時間: {elapsed_time:.1f} ms\nAPI Latency: {bot.latency * 1000:.1f} ms\nLocal IP: {local_ip}")
+
 @tree.command(name="delete", description="メッセージを削除します")
 @app_commands.describe(msgs = "メッセージリンクのリスト...半角空白で区切って複数のメッセージを選択します")
 async def delete(itr:discord.Interaction, msgs: str):
@@ -628,7 +639,7 @@ async def delete(itr:discord.Interaction, msgs: str):
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
         return
     else:
-        msgfind = re.findall(r'd{19}/\d{19}/\d{19}', msgs)
+        msgfind = re.findall(r'\d{19}/\d{19}/\d{19}', msgs)
         if len(msgfind) <= 0:
             itr.command_failed = True
             await Reply(itr, 2, "エラー", "入力された値が適切ではありません。", True)
