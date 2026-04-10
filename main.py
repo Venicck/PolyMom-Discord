@@ -14,7 +14,7 @@ from discord.ext import commands
 from bs4 import BeautifulSoup
 import firebase_admin
 from firebase_admin import credentials, firestore
-import weathernews
+import weathernews as WN
 
 #region 初期変数
 
@@ -172,7 +172,13 @@ def Get_weather_yahoo():
 
 #region 天気予報用のEmbed作成
 
-def Make_embed_forecast(when = "today", customdata = None):
+async def Make_embed_forecast(itr: discord.Interaction, imgpath, date, color: discord.Color, citedLink, private : bool = False):
+    embed = discord.Embed(title=f"{date} の天気予報", description=f"[Weather News](<{citedLink}>) からの天気予報をお知らせします。", color=color)
+    file = discord.File(imgpath, filename=f"forecast-{date}.png")
+    embed.set_image(url="attachment://forecast-{date}.png")
+    await itr.response.send_message(embed=embed, file=file, ephemeral=private)
+
+def OLD_Make_embed_forecast(when = "today", customdata = None):
     weather_data = Get_weather_yahoo() if customdata is None else customdata
     if not weather_data:
         return None
@@ -506,48 +512,34 @@ class WaitingExpire(discord.ui.View):
 
 #region コマンド
 
-@tree.command(name="forecast", description="天気予報を表示します")
-@app_commands.describe(target_day = "取得する日 (YYYY/MM/DD の DD を入力)", json_export = "JSON形式で天気予報を返します。")
-async def forecast(itr: discord.Interaction, target_day: int = 0, json_export: bool = False):
-    today = time.localtime()
-    if target_day == 0:
-        target_day = time.localtime().tm_mday
-    if abs(today.tm_mday - target_day) > 2:
-        itr.command_failed = True
-        await Reply(itr, 2, "エラー", "今日を含めて前後2日間の日付を指定してください。", True)
-        return
-    wn = weathernews.WeatherNews()
+@tree.command(name="forecast", description="天気予報を表示します ソースはWeatherNewsです。")
+@app_commands.describe(day = "年/月/日の日の数字です。何も入力しなければ今日の天気予報を表示します。", private = "出力結果を自分だけに表示するか")
+async def forecast(itr: discord.Interaction, day: int = -1, private: bool = False):
+    await itr.response.defer()
+    print(day)
+    wn = WN.WeatherNews()
+    if day == -1:
+        day = time.localtime().tm_mday  # 今日の日付を取得
+    elif day < 1:
+        await Reply(itr, 2, "エラー", "日付は1以上の整数で指定してください", True)
     try:
-        wn.Get_weather(target_day)
-        if json_export:
-            json_str = json.dumps(wn.weather_data, indent=4, ensure_ascii=False)
-            await itr.response.send_message(f"{wn.requested_day} の天気予報をJSON形式で以下に出力しました。 ```json\n{json_str}\n```", ephemeral=False)
-        else:
-            wn.Make_graph()
-            wn.Make_image()
-            emb = discord.Embed(title=f"{wn.requested_day} の天気予報", color=discord.Color.from_str(wn.bar_color[:7]))
-            file = discord.File(wn.exported_image_path, filename=f"{wn.requested_day}-forecast.png")
-            emb.set_image(url=f"attachment://{wn.requested_day}-forecast.png")
-            emb.set_footer(text=wn.footer)
-            await itr.response.send_message(embed=emb, file=file, ephemeral=False)
-    except weathernews.DayNotFoundOnWeatherNews:
-        itr.command_failed = True
-        await Reply(itr, 2, "エラー", "指定された日付の天気予報が見つかりませんでした。", True)
-        return
-    except weathernews.FullDataNotFoundOnWeatherNews:
-        itr.command_failed = True
-        await Reply(itr, 2, "エラー", "指定された日付は24時間分のデータがないため画像を作成できません。", True)
-        return
-    except weathernews.DayIsNotSet:
-        itr.command_failed = True
-        await Reply(itr, 2, "エラー", "日付が設定されていません。", True)
-        return
+        wn.Get_weather(day)
+        wn.Get_weather(16)
+        wn.Make_graph()
+        wn.Make_image()
+        print(f"graph:{wn.exported_graph_path} img:{wn.exported_image_path}")
+    except WN.DayNotFoundOnWeatherNews:
+        await Reply(itr, 2, "エラー", "指定された日の天気情報が見つかりませんでした\nヒント: 今日から2日前後のデータを取得できます。", True)
+    except WN.FullDataNotFoundOnWeatherNews:
+        await Reply(itr, 2, "エラー", "指定された日の24時間分のデータが公開されていないため天気予報を生成できません。ヒント: 今日から2日前後のデータを取得できます。\n", True)
+    except WN.DayIsNotSet:
+        await Reply(itr, 2, "エラー", "まさかとは思いますがさすがに日付を指定せずにデータを得られると思っていませんよね？", True)
 
-@tree.command(name='old_forecast', description="天気予報を表示します(旧版)")
+@tree.command(name='OLD_forecast', description="天気予報を表示します ソースはYahoo!天気です。")
 @app_commands.describe(is_tomorrow = "False:今日 True:明日", json_export = "JSON形式で天気予報を返します。")
-async def old_forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_export: bool = False):
+async def OLD_forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_export: bool = False):
     if not json_export:
-        emb = Make_embed_forecast("tomorrow" if is_tomorrow else "today")
+        emb = OLD_Make_embed_forecast("tomorrow" if is_tomorrow else "today")
         await itr.response.send_message(embed=emb[0])
     else:
         weather_data = Get_weather_yahoo()
@@ -579,8 +571,8 @@ async def reload(itr: discord.Interaction):
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
 
-@tree.command(name='deb_custom_forecast',description="自作した天気予報を表示します")
-async def deb_custom_forecast(itr: discord.Interaction, json_str: str, today: bool = True):
+@tree.command(name='DEV_custom_forecast',description="自作した天気予報を表示します")
+async def DEV_custom_forecast(itr: discord.Interaction, json_str: str, today: bool = True):
     if not (json_str.startswith("{") and json_str.endswith("}")):
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "JSON形式で天気予報を入力してください", True)
@@ -993,7 +985,7 @@ async def Auto_Forecast():
             Save("Auto_forecast_Started_Countdown")
             await asyncio.sleep(data["weather"]["notify_time"][i] - nt) #通知時間まで待機
             ch = bot.get_channel(int(data["weather"]["msg_channel"]))
-            wn = weathernews.WeatherNews()
+            wn = WN.WeatherNews()
             if data["weather"]["day"][i] == "today":
                 wn.Get_weather(time.localtime().tm_mday)
             else:
