@@ -90,7 +90,6 @@ def is_unicode_emoji(s: str) -> bool:
     return bool(EMOJI_PATTERN.fullmatch(s))
 
 #region 便利関数
-
 async def Reply(itr: discord.Interaction, type:int, title: str, message: str, private: bool = False):
     """type: {0:成功,1:情報,2:エラー}"""
     colors = [discord.Color.green(), discord.Color.blue(), discord.Color.red()]
@@ -269,7 +268,15 @@ async def on_message(msg : discord.Message):
                 await msg.add_reaction("💤")
                 Check_expires.stop()
                 await bot.close()
-                await asyncio.sleep(2)
+                sys.exit(0)
+             elif cmd == "restart":
+                await msg.channel.send("Botを再起動します...")
+                await bot.close()
+                sys.exit(10)
+            elif cmd == "update":
+                await interaction.response.send_message("アップデートを確認して再起動します...")
+                await bot.close()
+                sys.exit(11)
             elif cmd == "msglog":
                 msg_log_mode = not msg_log_mode
                 if msg_log_mode:
@@ -326,9 +333,9 @@ async def on_message(msg : discord.Message):
                                             }
                                             count_restored += 1
                         Save("Restored")
-
                 await progress.delete()
                 await msg.channel.send(f"データの復元が完了しました。復元したメッセージ数: {count_restored}")
+            
     if msg_log_mode:
         print(f"{time.strftime('%Y/%m/%d %H:%M:%S')} | {msg.author.display_name}({msg.author.id}) | {msg.content}")
 
@@ -560,16 +567,6 @@ async def OLD_forecast(itr: discord.Interaction, is_tomorrow: bool = False, json
 @tree.command(name='help', description="このボットの使い方を表示します")
 async def help(itr: discord.Interaction):
     await Reply(itr, 1, "このボットの使い方！", "このボットがある絵文字リアクションがついたメッセージをスレッドに転送する便利ボット！\n\n`/add_thread` で絵文字とスレッドを連携させてね！\n`/remove_thread` で絵文字とスレッドの連携を解除できるよ！\n`/expire` でスレッド内のメッセージの有効期限を設定できるよ！\n\n`/stats` でボイチャの状態を確認できるよ！", False)
-
-@tree.command(name='reload', description="jsonファイルを再読み込みします")
-async def reload(itr: discord.Interaction):
-    if itr.user.id in ADMIN_USER_IDS:
-        await Thread_Refresh()
-        Load()
-        await Reply(itr, 0, "完了", "jsonファイルを再読み込みしました", True)
-    else:
-        itr.command_failed = True
-        await Reply(itr, 2, "エラー", "このコマンドは管理者のみ使用できます", True)
 
 @tree.command(name='DEV_custom_forecast',description="自作した天気予報を表示します")
 async def DEV_custom_forecast(itr: discord.Interaction, json_str: str, today: bool = True):
