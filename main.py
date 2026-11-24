@@ -542,9 +542,9 @@ async def forecast(itr: discord.Interaction, day: int = -1, private: bool = Fals
     except WN.DayIsNotSet:
         await Reply(itr, 2, "エラー", "まさかとは思いますがさすがに日付を指定せずにデータを得られると思っていませんよね？", True)
 
-@tree.command(name='OLD_forecast', description="天気予報を表示します ソースはYahoo!天気です。")
+@tree.command(name='old_forecast', description="天気予報を表示します ソースはYahoo!天気です。")
 @app_commands.describe(is_tomorrow = "False:今日 True:明日", json_export = "JSON形式で天気予報を返します。")
-async def OLD_forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_export: bool = False):
+async def old_forecast(itr: discord.Interaction, is_tomorrow: bool = False, json_export: bool = False):
     if not json_export:
         emb = OLD_Make_embed_forecast("tomorrow" if is_tomorrow else "today")
         await itr.response.send_message(embed=emb[0])
@@ -568,8 +568,8 @@ async def OLD_forecast(itr: discord.Interaction, is_tomorrow: bool = False, json
 async def help(itr: discord.Interaction):
     await Reply(itr, 1, "このボットの使い方！", "このボットがある絵文字リアクションがついたメッセージをスレッドに転送する便利ボット！\n\n`/add_thread` で絵文字とスレッドを連携させてね！\n`/remove_thread` で絵文字とスレッドの連携を解除できるよ！\n`/expire` でスレッド内のメッセージの有効期限を設定できるよ！\n\n`/stats` でボイチャの状態を確認できるよ！", False)
 
-@tree.command(name='DEV_custom_forecast',description="自作した天気予報を表示します")
-async def DEV_custom_forecast(itr: discord.Interaction, json_str: str, today: bool = True):
+@tree.command(name='dev_custom_forecast',description="自作した天気予報を表示します")
+async def dev_custom_forecast(itr: discord.Interaction, json_str: str, today: bool = True):
     if not (json_str.startswith("{") and json_str.endswith("}")):
         itr.command_failed = True
         await Reply(itr, 2, "エラー", "JSON形式で天気予報を入力してください", True)
