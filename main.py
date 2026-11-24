@@ -269,7 +269,7 @@ async def on_message(msg : discord.Message):
                 Check_expires.stop()
                 await bot.close()
                 sys.exit(0)
-             elif cmd == "restart":
+            elif cmd == "restart":
                 await msg.channel.send("Botを再起動します...")
                 await bot.close()
                 sys.exit(10)
