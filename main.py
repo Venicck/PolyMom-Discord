@@ -24,6 +24,7 @@ firebase_admin.initialize_app(cred)
 db = firestore.client()
 bot = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(bot)
+exit_code = 0
 
 JST = datetime.timezone(datetime.timedelta(hours=9))  # 日本標準時
 YAHOO_URL = "https://weather.yahoo.co.jp/weather/13/4410/13208.html"
@@ -270,13 +271,13 @@ async def on_message(msg : discord.Message):
                 await bot.close()
                 sys.exit(0)
             elif cmd == "restart":
-                await msg.channel.send("Botを再起動します...")
+                await msg.channel.send("Restarting me...")
+                exit_code = 10
                 await bot.close()
-                sys.exit(10)
             elif cmd == "update":
-                await interaction.response.send_message("アップデートを確認して再起動します...")
+                await interaction.response.send_message("Restarting me with updates...")
+                exit_code = 11
                 await bot.close()
-                sys.exit(11)
             elif cmd == "msglog":
                 msg_log_mode = not msg_log_mode
                 if msg_log_mode:
@@ -1003,6 +1004,8 @@ async def Auto_Forecast():
             data["weather"]["last_noticed"] = False
             Save("Auto_forecast_Completed")
 
-tree.on_error = on_command_error
-token = os.getenv("DISCORD_TOKEN")
-bot.run(token)
+if __name__ == "__main__":
+    tree.on_error = on_command_error
+    token = os.getenv("DISCORD_TOKEN")
+    bot.run(token)
+    sys.exit(exit_code)
